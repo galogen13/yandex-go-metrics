@@ -1,5 +1,7 @@
 package models
 
+import "errors"
+
 const (
 	Counter = "counter"
 	Gauge   = "gauge"
@@ -17,3 +19,5 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"`
 	Hash  string   `json:"hash,omitempty"`
 }
+
+var ErrorIncorrectUse = errors.New("metrics: incorrect use")
