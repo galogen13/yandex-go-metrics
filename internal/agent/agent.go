@@ -89,9 +89,9 @@ func sendMetrics(metrics agentMetrics) {
 
 		switch fieldValue.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			go sendMetricsHTTP(client, models.Counter, field.Name, fieldValue.Int())
+			sendMetricsHTTP(client, models.Counter, field.Name, fieldValue.Int())
 		case reflect.Float32, reflect.Float64:
-			go sendMetricsHTTP(client, models.Gauge, field.Name, fieldValue.Float())
+			sendMetricsHTTP(client, models.Gauge, field.Name, fieldValue.Float())
 		}
 
 	}
