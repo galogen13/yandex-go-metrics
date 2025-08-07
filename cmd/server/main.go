@@ -1,11 +1,16 @@
 package main
 
 import (
-	router "github.com/galogen13/yandex-go-metrics/internal/router"
+	models "github.com/galogen13/yandex-go-metrics/internal/model"
+	"github.com/galogen13/yandex-go-metrics/internal/router"
+	"github.com/galogen13/yandex-go-metrics/internal/storage"
 )
 
 func main() {
-	if err := router.Start(); err != nil {
+
+	var storage models.Storage = storage.NewMemStorage()
+
+	if err := router.Start(storage); err != nil {
 		panic(err)
 	}
 }

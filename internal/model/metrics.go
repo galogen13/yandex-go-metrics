@@ -20,4 +20,7 @@ type Metrics struct {
 	Hash  string   `json:"hash,omitempty"`
 }
 
-var ErrorIncorrectUse = errors.New("metrics: incorrect use")
+var ErrorMetricsIncorrectValue = errors.New("metrics: incorrect value")
+var ErrorMetricsNotExists = errors.New("metrics: not exists")
+var ErrorMetricsIncorrectUse = errors.New("metrics: incorrect use")
+var ErrorMetricsAlreadyExists = errors.New("metrics: already exists")
