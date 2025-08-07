@@ -134,10 +134,11 @@ func updateMetrics(metrics *agentMetrics) {
 func sendMetricsHTTP(client *http.Client, mType string, metricsName string, value any) {
 	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, mType, metricsName, value)
 	resp, err := client.Post(url, contentTypeTextPlain, strings.NewReader(""))
-
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		fmt.Println(resp.StatusCode)
