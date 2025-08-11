@@ -1,119 +1,79 @@
 package handler
 
 import (
-	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 
 	models "github.com/galogen13/yandex-go-metrics/internal/model"
-	"github.com/galogen13/yandex-go-metrics/internal/service"
-	"github.com/galogen13/yandex-go-metrics/internal/web"
-	"github.com/go-chi/chi/v5"
 )
 
 const (
+	indexMType = iota
+	indexID
+	indexValue
+	reqContentTypeTextPlain  = "text/plain"
 	respContentTypeTextPlain = "text/plain; charset=utf-8"
-	respContentTypeTextHTML  = "text/html; charset=utf-8"
 )
 
-func GetListHandler(storage models.Storage) http.HandlerFunc {
+func UpdateHandler(storage models.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-type", respContentTypeTextPlain)
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
 
-		metrics := storage.GetAll()
-		metricsValues := service.GetMetricsValues(metrics)
-
-		web.MetricsListPage(w, metricsValues)
-
-		w.Header().Set("Content-Type", respContentTypeTextHTML)
-		w.WriteHeader(http.StatusOK)
-
-	}
-}
-
-func GetValueHandler(storage models.Storage) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		w.Header().Set("Content-Type", respContentTypeTextPlain)
-
-		mID := chi.URLParam(r, "metrics")
-		if !checkMetricsID(mID) {
+		if contentType := r.Header.Get("Content-Type"); !strings.Contains(contentType, reqContentTypeTextPlain) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		mType := chi.URLParam(r, "mType")
-		if !checkMetricsType(mType) {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+		URIParts := strings.Split(strings.TrimPrefix(r.RequestURI, r.Pattern), "/")
 
-		metrics, err := storage.Get(mID, mType)
-		if err != nil {
+		if len(URIParts) != 3 {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		value := service.GetMetricsValue(metrics)
-		io.WriteString(w, fmt.Sprintf("%v", value))
+		metricsType := URIParts[indexMType]
+		if metricsType != models.Counter && metricsType != models.Gauge {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
-	}
-}
-
-func UpdateHandler(storage models.Storage) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		w.Header().Add("Content-type", respContentTypeTextPlain)
-
-		metricsType := chi.URLParam(r, "mType")
-
-		metricsID := chi.URLParam(r, "metrics")
+		metricsID := URIParts[indexID]
 		if !checkMetricsID(metricsID) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		if !checkMetricsType(metricsType) {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		value := chi.URLParam(r, "value")
-
-		var (
-			valueConverted any
-			err            error
-		)
-
 		switch metricsType {
 		case models.Counter:
-			valueConverted, err = convertCounterValue(value)
+			delta, err := convertCounterValue(URIParts[indexValue])
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			err = storage.Update(metricsID, metricsType, delta)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 		case models.Gauge:
-			valueConverted, err = convertGaugeValue(value)
+			value, err := convertGaugeValue(URIParts[indexValue])
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-		default:
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		err = storage.Update(metricsID, metricsType, valueConverted)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
+			err = storage.Update(metricsID, metricsType, value)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 		}
 	}
-}
-
-func checkMetricsType(mType string) bool {
-	return mType == models.Counter || mType == models.Gauge
 }
 
 func convertGaugeValue(valueStr string) (float64, error) {
