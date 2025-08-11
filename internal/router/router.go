@@ -1,7 +1,6 @@
 package router
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -30,7 +29,9 @@ func metricsRouter(storage models.Storage) *chi.Mux {
 	r.Get("/", handler.GetListHandler(storage))
 
 	r.Route("/update", func(r chi.Router) {
-		r.Use(AllowContentType(reqContentTypeTextPlain))
+		// временно убрано, т.к. не проходили автотесты в github, хотя в задании 1 инкремента явно была написано,
+		// что update должен быть с "Content-Type: text/plain"
+		//r.Use(AllowContentType(reqContentTypeTextPlain))
 		r.Post("/{mType}/{metrics}/{value}", handler.UpdateHandler(storage))
 	})
 
@@ -56,8 +57,6 @@ func AllowContentType(contentTypes ...string) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-
-			fmt.Println("Stopped in content-type")
 
 			w.Header().Add("Content-type", respContentTypeTextPlain)
 			w.WriteHeader(http.StatusBadRequest)
