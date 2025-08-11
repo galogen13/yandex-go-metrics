@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -56,8 +57,10 @@ func AllowContentType(contentTypes ...string) func(http.Handler) http.Handler {
 				return
 			}
 
+			fmt.Println("Stopped in content-type")
+
 			w.Header().Add("Content-type", respContentTypeTextPlain)
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusBadRequest)
 		})
 	}
 }
