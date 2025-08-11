@@ -1,11 +1,7 @@
 package main
 
-import (
-	"github.com/galogen13/yandex-go-metrics/internal/agent"
-)
+import cmd "github.com/galogen13/yandex-go-metrics/cmd/agent/cobra"
 
 func main() {
-
-	agent.Start()
-
+	cmd.Execute()
 }

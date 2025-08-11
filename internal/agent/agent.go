@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	pollInterval   = 2 * time.Second
-	reportInterval = 10 * time.Second
+	// pollInterval   = 2 * time.Second
+	// reportInterval = 10 * time.Second
 
 	host                 = "localhost:8080"
 	contentTypeTextPlain = "text/plain"
@@ -56,12 +56,12 @@ type agentMetrics struct {
 	RandomValue float64
 }
 
-func Start() {
+func Start(hostAddr string, reportInterval, pollInterval int) {
 
 	metrics := agentMetrics{}
 
-	tickerPoll := time.NewTicker(pollInterval)
-	tickerReport := time.NewTicker(reportInterval)
+	tickerPoll := time.NewTicker(time.Duration(pollInterval) * time.Second)
+	tickerReport := time.NewTicker(time.Duration(reportInterval) * time.Second)
 	for {
 		select {
 		case <-tickerPoll.C:
@@ -69,7 +69,6 @@ func Start() {
 		case <-tickerReport.C:
 			go sendMetrics(metrics)
 		}
-
 	}
 }
 

@@ -14,10 +14,10 @@ const (
 	respContentTypeTextPlain = "text/plain; charset=utf-8"
 )
 
-func Start(storage models.Storage) error {
+func Start(addr string, storage models.Storage) error {
 
 	r := metricsRouter(storage)
-	return http.ListenAndServe("localhost:8080", r)
+	return http.ListenAndServe(addr, r)
 }
 
 func metricsRouter(storage models.Storage) *chi.Mux {
