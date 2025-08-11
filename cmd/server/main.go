@@ -1,7 +1,21 @@
 package main
 
-import cmd "github.com/galogen13/yandex-go-metrics/cmd/server/cobra"
+import (
+	"flag"
+
+	models "github.com/galogen13/yandex-go-metrics/internal/model"
+	"github.com/galogen13/yandex-go-metrics/internal/router"
+	"github.com/galogen13/yandex-go-metrics/internal/storage"
+)
 
 func main() {
-	cmd.Execute()
+	// cmd.Execute()
+	hostAddress := flag.String("a", "localhost:8080", "host address")
+	flag.Parse()
+
+	var storage models.Storage = storage.NewMemStorage()
+
+	if err := router.Start(*hostAddress, storage); err != nil {
+		panic(err)
+	}
 }
