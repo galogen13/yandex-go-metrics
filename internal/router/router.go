@@ -2,7 +2,6 @@ package router
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	models "github.com/galogen13/yandex-go-metrics/internal/model"
@@ -27,41 +26,10 @@ func metricsRouter(storage models.Storage) *chi.Mux {
 	r.MethodNotAllowed(methodNotAllowedHandler())
 
 	r.Get("/", handler.GetListHandler(storage))
-
-	r.Route("/update", func(r chi.Router) {
-		// временно убрано, т.к. не проходили автотесты в github, хотя в задании 1 инкремента явно была написано,
-		// что update должен быть с "Content-Type: text/plain"
-		//r.Use(AllowContentType(reqContentTypeTextPlain))
-		r.Post("/{mType}/{metrics}/{value}", handler.UpdateHandler(storage))
-	})
-
+	r.Post("/update/{mType}/{metrics}/{value}", handler.UpdateHandler(storage))
 	r.Get("/value/{mType}/{metrics}", handler.GetValueHandler(storage))
 
 	return r
-}
-
-// Заимствована из chi, убрана проверка на ContentLength = 0, скорректирован код ответа, изменен Content-type
-func AllowContentType(contentTypes ...string) func(http.Handler) http.Handler {
-	allowedContentTypes := make(map[string]struct{}, len(contentTypes))
-	for _, ctype := range contentTypes {
-		allowedContentTypes[strings.TrimSpace(strings.ToLower(ctype))] = struct{}{}
-	}
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-			s, _, _ := strings.Cut(r.Header.Get("Content-Type"), ";")
-			s = strings.ToLower(strings.TrimSpace(s))
-
-			if _, ok := allowedContentTypes[s]; ok {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			w.Header().Add("Content-type", respContentTypeTextPlain)
-			w.WriteHeader(http.StatusBadRequest)
-		})
-	}
 }
 
 func notFoundHandler() http.HandlerFunc {
