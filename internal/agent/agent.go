@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"reflect"
 	"runtime"
-	"strings"
 	"time"
 
 	models "github.com/galogen13/yandex-go-metrics/internal/model"
+
+	"github.com/go-resty/resty/v2"
 )
 
 const (
@@ -64,7 +65,7 @@ func Start() {
 	for {
 		select {
 		case <-tickerPoll.C:
-			updateMetrics(&metrics)
+			metrics = updateMetrics(metrics)
 		case <-tickerReport.C:
 			go sendMetrics(metrics)
 		}
@@ -73,12 +74,13 @@ func Start() {
 }
 
 func sendMetrics(metrics agentMetrics) {
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+
+	client := resty.New()
+	client.SetRedirectPolicy(resty.RedirectPolicyFunc(
+		func(req *http.Request, via []*http.Request) error {
 			req.Method = http.MethodPost
 			return nil
-		},
-	}
+		}))
 
 	v := reflect.ValueOf(metrics)
 	t := v.Type()
@@ -97,7 +99,7 @@ func sendMetrics(metrics agentMetrics) {
 	}
 }
 
-func updateMetrics(metrics *agentMetrics) {
+func updateMetrics(metrics agentMetrics) agentMetrics {
 	var rtm runtime.MemStats
 	runtime.ReadMemStats(&rtm)
 	metrics.Alloc = float64(rtm.Alloc)
@@ -129,19 +131,23 @@ func updateMetrics(metrics *agentMetrics) {
 	metrics.TotalAlloc = float64(rtm.TotalAlloc)
 	metrics.PollCount++
 	metrics.RandomValue = rand.Float64()
+
+	return metrics
 }
 
-func sendMetricsHTTP(client *http.Client, mType string, metricsName string, value any) {
+func sendMetricsHTTP(client *resty.Client, mType string, metricsName string, value any) {
+
 	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, mType, metricsName, value)
-	resp, err := client.Post(url, contentTypeTextPlain, strings.NewReader(""))
+	resp, err := client.R().
+		SetHeader("Content-Type", contentTypeTextPlain).
+		Post(url)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Println(resp.StatusCode)
+	if resp.StatusCode() != http.StatusOK {
+		fmt.Println(resp.StatusCode())
 	}
 
 }

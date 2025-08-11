@@ -2,6 +2,16 @@ package service
 
 import models "github.com/galogen13/yandex-go-metrics/internal/model"
 
+func NewMetrics(ID string, MType string) models.Metrics {
+
+	metrics := models.Metrics{}
+	metrics.ID = ID
+	metrics.MType = MType
+
+	return metrics
+
+}
+
 func CheckMetricsType(metrics models.Metrics, MType string) error {
 	if metrics.MType != MType {
 		return models.ErrorMetricsIncorrectUse
@@ -31,18 +41,31 @@ func UpdateMetricsValue(metrics models.Metrics, Value any) (models.Metrics, erro
 		} else {
 			*metrics.Delta += metricsValue
 		}
+	default:
+		return models.Metrics{}, models.ErrorMetricsNotExists
 	}
 	return metrics, nil
 }
 
-func NewMetrics(ID string, MType string) models.Metrics {
+func GetMetricsValue(metrics models.Metrics) any {
+	switch metrics.MType {
+	case models.Gauge:
+		return *metrics.Value
+	case models.Counter:
+		return *metrics.Delta
+	}
+	return nil
+}
 
-	metrics := models.Metrics{}
-	metrics.ID = ID
-	metrics.MType = MType
+func GetMetricsValues(metricsList []models.Metrics) map[string]any {
 
-	return metrics
+	result := make(map[string]any)
 
+	for _, metrics := range metricsList {
+		result[metrics.ID] = GetMetricsValue(metrics)
+	}
+
+	return result
 }
 
 func gaugeValue(Value any) (float64, error) {
