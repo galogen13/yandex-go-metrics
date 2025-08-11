@@ -17,6 +17,11 @@ const (
 	respContentTypeTextHTML = "text/html; charset=utf-8"
 )
 
+type testRequestResponse struct {
+	StatusCode        int
+	Body, ContentType string
+}
+
 func TestRouter_Update(t *testing.T) {
 
 	type wantStruct struct {
@@ -115,10 +120,10 @@ func TestRouter_Update(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp, respBody := testRequest(t, ts, test.method, test.url, test.contentType)
+		resp := testRequest(t, ts, test.method, test.url, test.contentType)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
-		assert.Equal(t, test.want.response, respBody, test.name)
-		assert.Equal(t, test.want.contentType, resp.Header.Get("Content-Type"), test.name)
+		assert.Equal(t, test.want.response, resp.Body, test.name)
+		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
 	}
 }
 
@@ -178,13 +183,13 @@ func TestRouter_GetList(t *testing.T) {
 
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp, respBody := testRequest(t, ts, test.method, test.url, test.contentType)
+		resp := testRequest(t, ts, test.method, test.url, test.contentType)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 
-		assert.Contains(t, respBody, test.want.tdMetricsID)
-		assert.Contains(t, respBody, test.want.tdMetricsValue)
+		assert.Contains(t, resp.Body, test.want.tdMetricsID)
+		assert.Contains(t, resp.Body, test.want.tdMetricsValue)
 
-		assert.Equal(t, test.want.contentType, resp.Header.Get("Content-Type"), test.name)
+		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
 	}
 }
 
@@ -236,14 +241,14 @@ func TestRouter_Get(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp, respBody := testRequest(t, ts, test.method, test.url, test.contentType)
+		resp := testRequest(t, ts, test.method, test.url, test.contentType)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
-		assert.Equal(t, test.want.response, respBody, test.name)
-		assert.Equal(t, test.want.contentType, resp.Header.Get("Content-Type"), test.name)
+		assert.Equal(t, test.want.response, resp.Body, test.name)
+		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
 	}
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, method, path string, contentType string) (*http.Response, string) {
+func testRequest(t *testing.T, ts *httptest.Server, method, path string, contentType string) testRequestResponse {
 	req, err := http.NewRequest(method, ts.URL+path, strings.NewReader(""))
 	req.Header.Set("Content-Type", contentType)
 	require.NoError(t, err)
@@ -252,8 +257,14 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, content
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBodyBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	return resp, string(respBody)
+	result := testRequestResponse{
+		StatusCode:  resp.StatusCode,
+		Body:        string(respBodyBytes),
+		ContentType: resp.Header.Get("Content-Type"),
+	}
+
+	return result
 }
