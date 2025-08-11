@@ -24,10 +24,11 @@ func GetListHandler(storage models.Storage) http.HandlerFunc {
 		metrics := storage.GetAll()
 		metricsValues := service.GetMetricsValues(metrics)
 
-		web.MetricsListPage(w, metricsValues)
-
-		w.Header().Set("Content-Type", respContentTypeTextHTML)
-		w.WriteHeader(http.StatusOK)
+		err := web.MetricsListPage(w, metricsValues)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
 	}
 }

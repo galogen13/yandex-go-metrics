@@ -9,16 +9,16 @@ var (
 	templatePath = "../../internal/web/templates/list.tmpl"
 )
 
-func MetricsListPage(w http.ResponseWriter, metricsValues map[string]any) {
+func MetricsListPage(w http.ResponseWriter, metricsValues map[string]any) error {
 	tmpl, err := template.ParseFiles(templatePath)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	err = tmpl.Execute(w, metricsValues)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
+
+	return nil
 }
