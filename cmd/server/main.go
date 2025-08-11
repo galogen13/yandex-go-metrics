@@ -9,7 +9,6 @@ import (
 )
 
 func main() {
-	// cmd.Execute()
 	hostAddress := flag.String("a", "localhost:8080", "host address")
 	flag.Parse()
 
