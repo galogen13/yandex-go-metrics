@@ -14,12 +14,10 @@ import (
 )
 
 const (
-	// pollInterval   = 2 * time.Second
-	// reportInterval = 10 * time.Second
-
-	host                 = "localhost:8080"
 	contentTypeTextPlain = "text/plain"
 )
+
+var host string
 
 type agentMetrics struct {
 	// runtime.MemStats
@@ -58,6 +56,7 @@ type agentMetrics struct {
 
 func Start(hostAddr string, reportInterval, pollInterval int) {
 
+	host = hostAddr
 	metrics := agentMetrics{}
 
 	tickerPoll := time.NewTicker(time.Duration(pollInterval) * time.Second)
