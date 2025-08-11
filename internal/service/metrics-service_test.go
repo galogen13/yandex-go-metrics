@@ -14,7 +14,7 @@ func TestUpdateMetricsValue(t *testing.T) {
 		Value   any
 	}
 
-	var gaugeValue float64 = 12.34
+	gaugeValue := 12.34
 	newGauge := NewMetrics("Alloc", models.Gauge)
 	newGauge.Value = &gaugeValue
 
