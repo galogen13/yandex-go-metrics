@@ -57,7 +57,7 @@ func AllowContentType(contentTypes ...string) func(http.Handler) http.Handler {
 			}
 
 			w.Header().Add("Content-type", respContentTypeTextPlain)
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusForbidden)
 		})
 	}
 }
