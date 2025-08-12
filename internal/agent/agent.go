@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/galogen13/yandex-go-metrics/internal/config"
-	models "github.com/galogen13/yandex-go-metrics/internal/model"
+	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -136,17 +136,17 @@ func (agent Agent) sendMetrics() {
 
 		switch fieldValue.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			sendMetricsHTTP(client, agent.host, models.Counter, field.Name, fieldValue.Int())
+			sendMetricsHTTP(client, agent.host, metrics.Counter, field.Name, fieldValue.Int())
 		case reflect.Float32, reflect.Float64:
-			sendMetricsHTTP(client, agent.host, models.Gauge, field.Name, fieldValue.Float())
+			sendMetricsHTTP(client, agent.host, metrics.Gauge, field.Name, fieldValue.Float())
 		}
 
 	}
 }
 
-func sendMetricsHTTP(client *resty.Client, host, mType, metricsName string, value any) {
+func sendMetricsHTTP(client *resty.Client, host, mType, metricName string, value any) {
 
-	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, mType, metricsName, value)
+	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, mType, metricName, value)
 	resp, err := client.R().
 		SetHeader("Content-Type", contentTypeTextPlain).
 		Post(url)

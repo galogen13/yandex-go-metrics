@@ -1,62 +1,31 @@
 package storage
 
 import (
-	models "github.com/galogen13/yandex-go-metrics/internal/model"
-	"github.com/galogen13/yandex-go-metrics/internal/service"
+	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 )
 
 type MemStorage struct {
-	Metrics map[string]models.Metrics
+	Metrics map[string]metrics.Metric
 }
 
 func NewMemStorage() *MemStorage {
 	newStorage := MemStorage{}
-	newStorage.Metrics = map[string]models.Metrics{}
+	newStorage.Metrics = map[string]metrics.Metric{}
 	return &newStorage
 }
 
-func (storage *MemStorage) Update(ID string, MType string, Value any) (err error) {
-
-	metrics, ok := storage.Metrics[ID]
-	if ok {
-		err := service.CheckMetricsType(metrics, MType)
-		if err != nil {
-			return err
-		}
-		metrics, err = service.UpdateMetricsValue(metrics, Value)
-		if err != nil {
-			return err
-		}
-
-	} else {
-		metrics = service.NewMetrics(ID, MType)
-		metrics, err = service.UpdateMetricsValue(metrics, Value)
-		if err != nil {
-			return err
-		}
-	}
-	storage.Metrics[ID] = metrics
-
-	return nil
+func (storage *MemStorage) Update(metrics metrics.Metric) {
+	storage.Metrics[metrics.ID] = metrics
 }
 
-func (storage MemStorage) Get(ID string, MType string) (models.Metrics, error) {
+func (storage MemStorage) Get(ID string) (bool, metrics.Metric) {
 
 	metrics, ok := storage.Metrics[ID]
-	if !ok {
-		return models.Metrics{}, models.ErrorMetricsNotExists
-	}
-
-	err := service.CheckMetricsType(metrics, MType)
-	if err != nil {
-		return models.Metrics{}, err
-	}
-
-	return metrics, nil
+	return ok, metrics
 }
 
-func (storage MemStorage) GetAll() []models.Metrics {
-	list := make([]models.Metrics, 0, len(storage.Metrics))
+func (storage MemStorage) GetAll() []metrics.Metric {
+	list := make([]metrics.Metric, 0, len(storage.Metrics))
 	for _, metrics := range storage.Metrics {
 		list = append(list, metrics)
 	}

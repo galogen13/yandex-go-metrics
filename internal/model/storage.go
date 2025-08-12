@@ -1,7 +1,9 @@
 package models
 
+import "github.com/galogen13/yandex-go-metrics/internal/service/metrics"
+
 type Storage interface {
-	Update(ID string, MType string, Value any) error
-	Get(ID string, MType string) (Metrics, error)
-	GetAll() []Metrics
+	Update(metric metrics.Metric)
+	Get(ID string) (bool, metrics.Metric)
+	GetAll() []metrics.Metric
 }

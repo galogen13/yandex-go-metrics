@@ -4,8 +4,8 @@ import (
 	"log"
 
 	"github.com/galogen13/yandex-go-metrics/internal/config"
-	models "github.com/galogen13/yandex-go-metrics/internal/model"
 	"github.com/galogen13/yandex-go-metrics/internal/router"
+	"github.com/galogen13/yandex-go-metrics/internal/service/server"
 	"github.com/galogen13/yandex-go-metrics/internal/storage"
 )
 
@@ -19,9 +19,10 @@ func run() error {
 
 	config := config.GetServerConfig()
 
-	var storage models.Storage = storage.NewMemStorage()
+	storage := storage.NewMemStorage()
+	serverService := server.NewServerService(config, storage)
 
-	if err := router.Start(config, storage); err != nil {
+	if err := router.Start(serverService); err != nil {
 		return err
 	}
 

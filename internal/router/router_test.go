@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/galogen13/yandex-go-metrics/internal/config"
 	models "github.com/galogen13/yandex-go-metrics/internal/model"
+	"github.com/galogen13/yandex-go-metrics/internal/service/server"
 	"github.com/galogen13/yandex-go-metrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,8 +33,11 @@ func TestRouter_Update(t *testing.T) {
 	}
 
 	stor := storage.NewMemStorage()
+	config := config.ServerConfig{Host: "localhost:8080"}
 
-	ts := httptest.NewServer(metricsRouter(stor))
+	server := server.NewServerService(config, stor)
+
+	ts := httptest.NewServer(metricsRouter(server))
 	defer ts.Close()
 
 	tests := []struct {
@@ -137,8 +142,11 @@ func TestRouter_GetList(t *testing.T) {
 	}
 
 	stor := storage.NewMemStorage()
+	config := config.ServerConfig{Host: "localhost:8080"}
 
-	ts := httptest.NewServer(metricsRouter(stor))
+	server := server.NewServerService(config, stor)
+
+	ts := httptest.NewServer(metricsRouter(server))
 	defer ts.Close()
 
 	tests := []struct {
@@ -202,8 +210,11 @@ func TestRouter_Get(t *testing.T) {
 	}
 
 	stor := storage.NewMemStorage()
+	config := config.ServerConfig{Host: "localhost:8080"}
 
-	ts := httptest.NewServer(metricsRouter(stor))
+	server := server.NewServerService(config, stor)
+
+	ts := httptest.NewServer(metricsRouter(server))
 	defer ts.Close()
 
 	tests := []struct {
