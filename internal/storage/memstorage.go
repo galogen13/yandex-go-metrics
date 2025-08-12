@@ -9,13 +9,13 @@ type MemStorage struct {
 	Metrics map[string]models.Metrics
 }
 
-func NewMemStorage() MemStorage {
+func NewMemStorage() *MemStorage {
 	newStorage := MemStorage{}
 	newStorage.Metrics = map[string]models.Metrics{}
-	return newStorage
+	return &newStorage
 }
 
-func (storage MemStorage) Update(ID string, MType string, Value any) (err error) {
+func (storage *MemStorage) Update(ID string, MType string, Value any) (err error) {
 
 	metrics, ok := storage.Metrics[ID]
 	if ok {
