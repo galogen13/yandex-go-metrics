@@ -4,9 +4,9 @@ import (
 	"log"
 
 	"github.com/galogen13/yandex-go-metrics/internal/config"
+	storage "github.com/galogen13/yandex-go-metrics/internal/repository"
 	"github.com/galogen13/yandex-go-metrics/internal/router"
 	"github.com/galogen13/yandex-go-metrics/internal/service/server"
-	"github.com/galogen13/yandex-go-metrics/internal/storage"
 )
 
 func main() {

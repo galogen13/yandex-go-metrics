@@ -19,7 +19,6 @@ func (storage *MemStorage) Update(metrics metrics.Metric) {
 }
 
 func (storage MemStorage) Get(ID string) (bool, metrics.Metric) {
-
 	metrics, ok := storage.Metrics[ID]
 	return ok, metrics
 }
