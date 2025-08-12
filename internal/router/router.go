@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 
+	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	models "github.com/galogen13/yandex-go-metrics/internal/model"
 	"github.com/go-chi/chi/v5"
@@ -13,10 +14,10 @@ const (
 	respContentTypeTextPlain = "text/plain; charset=utf-8"
 )
 
-func Start(addr string, storage models.Storage) error {
+func Start(config config.ServerConfig, storage models.Storage) error {
 
 	r := metricsRouter(storage)
-	return http.ListenAndServe(addr, r)
+	return http.ListenAndServe(config.Host, r)
 }
 
 func metricsRouter(storage models.Storage) *chi.Mux {

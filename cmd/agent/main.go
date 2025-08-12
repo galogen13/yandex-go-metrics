@@ -1,16 +1,21 @@
 package main
 
 import (
-	"flag"
+	"log"
 
 	"github.com/galogen13/yandex-go-metrics/internal/agent"
+	"github.com/galogen13/yandex-go-metrics/internal/config"
 )
 
 func main() {
-	hostAddress := flag.String("a", "localhost:8080", "host address")
-	reportInterval := flag.Int("r", 10, "report interval, seconds")
-	pollInterval := flag.Int("p", 2, "poll interval, seconds")
-	flag.Parse()
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
 
-	agent.Start(*hostAddress, *reportInterval, *pollInterval)
+func run() error {
+	config := config.GetAgentConfig()
+	agent.Start(config)
+
+	return nil
 }

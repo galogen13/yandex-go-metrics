@@ -1,20 +1,29 @@
 package main
 
 import (
-	"flag"
+	"log"
 
+	"github.com/galogen13/yandex-go-metrics/internal/config"
 	models "github.com/galogen13/yandex-go-metrics/internal/model"
 	"github.com/galogen13/yandex-go-metrics/internal/router"
 	"github.com/galogen13/yandex-go-metrics/internal/storage"
 )
 
 func main() {
-	hostAddress := flag.String("a", "localhost:8080", "host address")
-	flag.Parse()
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
+
+	config := config.GetServerConfig()
 
 	var storage models.Storage = storage.NewMemStorage()
 
-	if err := router.Start(*hostAddress, storage); err != nil {
-		panic(err)
+	if err := router.Start(config, storage); err != nil {
+		return err
 	}
+
+	return nil
 }
