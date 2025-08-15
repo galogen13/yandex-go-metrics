@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"errors"
+	"fmt"
 )
 
 const (
@@ -22,11 +22,6 @@ type Metric struct {
 	Hash  string   `json:"hash,omitempty"`
 }
 
-var ErrorMetricsIncorrectValue = errors.New("metrics: incorrect value")
-var ErrorMetricsNotExists = errors.New("metrics: not exists")
-var ErrorMetricsIncorrectUse = errors.New("metrics: incorrect use")
-var ErrorMetricsAlreadyExists = errors.New("metrics: already exists")
-
 func NewMetrics(ID string, MType string) Metric {
 
 	metric := Metric{}
@@ -39,7 +34,7 @@ func NewMetrics(ID string, MType string) Metric {
 
 func (metric Metric) CheckType(MType string) error {
 	if metric.MType != MType {
-		return ErrorMetricsIncorrectUse
+		return fmt.Errorf("metric type does not match incoming metric type. expected: %s, have: %s", metric.MType, MType)
 	}
 	return nil
 }
@@ -49,7 +44,7 @@ func (metric *Metric) UpdateValue(Value any) error {
 	case Gauge:
 		metricValue, err := gaugeValue(Value)
 		if err != nil {
-			return err
+			return fmt.Errorf("error converting gauge value: %w", err)
 		}
 		if metric.Value == nil {
 			metric.Value = &metricValue
@@ -59,7 +54,7 @@ func (metric *Metric) UpdateValue(Value any) error {
 	case Counter:
 		metricsValue, err := counterValue(Value)
 		if err != nil {
-			return err
+			return fmt.Errorf("error converting counter value: %w", err)
 		}
 		if metric.Delta == nil {
 			metric.Delta = &metricsValue
@@ -67,7 +62,7 @@ func (metric *Metric) UpdateValue(Value any) error {
 			*metric.Delta += metricsValue
 		}
 	default:
-		return ErrorMetricsNotExists
+		return fmt.Errorf("invalid metric type when updating value: %s", metric.MType)
 	}
 
 	return nil
@@ -97,7 +92,7 @@ func GetMetricsValues(metricsList []Metric) map[string]any {
 func gaugeValue(Value any) (float64, error) {
 	metricsValue, ok := Value.(float64)
 	if !ok {
-		return 0, ErrorMetricsIncorrectValue
+		return 0, fmt.Errorf("value conversion error to float64: %v", Value)
 	}
 	return metricsValue, nil
 }
@@ -105,7 +100,7 @@ func gaugeValue(Value any) (float64, error) {
 func counterValue(Value any) (int64, error) {
 	metricsValue, ok := Value.(int64)
 	if !ok {
-		return 0, ErrorMetricsIncorrectValue
+		return 0, fmt.Errorf("value conversion error to int64: %v", Value)
 	}
 	return metricsValue, nil
 }

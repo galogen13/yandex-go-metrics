@@ -1,17 +1,24 @@
 package server
 
 import (
+	"fmt"
+
 	"github.com/galogen13/yandex-go-metrics/internal/config"
-	models "github.com/galogen13/yandex-go-metrics/internal/model"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 )
 
+type Storage interface {
+	Update(metric metrics.Metric)
+	Get(ID string) (bool, metrics.Metric)
+	GetAll() []metrics.Metric
+}
+
 type ServerService struct {
-	Storage models.Storage
+	Storage Storage
 	Config  config.ServerConfig
 }
 
-func NewServerService(config config.ServerConfig, storage models.Storage) *ServerService {
+func NewServerService(config config.ServerConfig, storage Storage) *ServerService {
 	return &ServerService{Config: config, Storage: storage}
 }
 
@@ -21,7 +28,7 @@ func (server *ServerService) UpdateMetric(ID string, MType string, Value any) er
 	if ok {
 		err := metric.CheckType(MType)
 		if err != nil {
-			return err
+			return errMetricTypeDoesNotMatch(err)
 		}
 	} else {
 		metric = metrics.NewMetrics(ID, MType)
@@ -29,7 +36,7 @@ func (server *ServerService) UpdateMetric(ID string, MType string, Value any) er
 
 	err := metric.UpdateValue(Value)
 	if err != nil {
-		return err
+		return fmt.Errorf("error updating metrics: %w", err)
 	}
 
 	server.Storage.Update(metric)
@@ -44,15 +51,20 @@ func (server ServerService) GetMetricValue(ID string, MType string) (any, error)
 	if ok {
 		err := metric.CheckType(MType)
 		if err != nil {
-			return nil, err
+			return nil, errMetricTypeDoesNotMatch(err)
 		}
 	} else {
-		return nil, metrics.ErrorMetricsNotExists
+		return nil, fmt.Errorf("metric does not exist in storage. ID: %s, mType: %s", ID, MType)
 	}
 
 	value := metric.GetValue()
 	return value, nil
 
+}
+
+func errMetricTypeDoesNotMatch(err error) error {
+	newVar := fmt.Errorf("metric type does not match an existing metric in the repository: %w", err)
+	return newVar
 }
 
 func (server ServerService) GetAllMetricsValues() map[string]any {

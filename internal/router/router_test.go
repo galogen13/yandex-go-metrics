@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/galogen13/yandex-go-metrics/internal/config"
-	models "github.com/galogen13/yandex-go-metrics/internal/model"
 	storage "github.com/galogen13/yandex-go-metrics/internal/repository"
 	"github.com/galogen13/yandex-go-metrics/internal/service/server"
 	"github.com/stretchr/testify/assert"
@@ -35,14 +34,14 @@ func TestRouter_Update(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	server := server.NewServerService(config, stor)
+	serverService := server.NewServerService(config, stor)
 
-	ts := httptest.NewServer(metricsRouter(server))
+	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
 
 	tests := []struct {
 		name        string
-		storage     models.Storage
+		storage     server.Storage
 		method      string
 		url         string
 		contentType string
@@ -72,14 +71,6 @@ func TestRouter_Update(t *testing.T) {
 			url:         "/update/counter/Counter/1",
 			contentType: reqContentTypeTextPlain,
 			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
-		// временно убрано, т.к. не проходили автотесты в github, хотя в задании 1 инкремента явно была написано,
-		// что update должен быть с "Content-Type: text/plain"
-		// {name: "Некорректный context type",
-		// 	storage:     stor,
-		// 	method:      http.MethodPost,
-		// 	url:         "/update/counter/Counter/1",
-		// 	contentType: "text/html",
-		// 	want:        wantStruct{status: http.StatusBadRequest, response: "", contentType: respContentTypeTextPlain}},
 		{name: "Некорректный url - нет типа метрики",
 			storage:     stor,
 			method:      http.MethodPost,
@@ -144,14 +135,14 @@ func TestRouter_GetList(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	server := server.NewServerService(config, stor)
+	serverService := server.NewServerService(config, stor)
 
-	ts := httptest.NewServer(metricsRouter(server))
+	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
 
 	tests := []struct {
 		name        string
-		storage     models.Storage
+		storage     server.Storage
 		method      string
 		url         string
 		contentType string
@@ -169,7 +160,7 @@ func TestRouter_GetList(t *testing.T) {
 			url:         "/update/gauge/Alloc/100.2",
 			contentType: reqContentTypeTextPlain,
 			want:        wantStruct{status: http.StatusOK, tdMetricsID: "", tdMetricsValue: "", contentType: respContentTypeTextPlain}},
-		{name: "Проверка наличия ",
+		{name: "Проверка counter для теста ",
 			storage:     stor,
 			method:      http.MethodPost,
 			url:         "/update/counter/Counter/2",
@@ -212,14 +203,14 @@ func TestRouter_Get(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	server := server.NewServerService(config, stor)
+	serverService := server.NewServerService(config, stor)
 
-	ts := httptest.NewServer(metricsRouter(server))
+	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
 
 	tests := []struct {
 		name        string
-		storage     models.Storage
+		storage     server.Storage
 		method      string
 		url         string
 		contentType string

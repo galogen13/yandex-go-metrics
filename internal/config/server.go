@@ -8,9 +8,6 @@ type ServerConfig struct {
 
 func GetServerConfig() ServerConfig {
 	hostAddress := flag.String("a", "localhost:8080", "host address")
-
 	flag.Parse()
-
 	return ServerConfig{Host: *hostAddress}
-
 }

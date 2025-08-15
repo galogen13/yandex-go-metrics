@@ -3,11 +3,11 @@ package handler
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
 
-	models "github.com/galogen13/yandex-go-metrics/internal/model"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 	"github.com/galogen13/yandex-go-metrics/internal/web"
 	"github.com/go-chi/chi/v5"
@@ -17,13 +17,21 @@ const (
 	respContentTypeTextPlain = "text/plain; charset=utf-8"
 )
 
-func GetListHandler(serverService models.Server) http.HandlerFunc {
+type Server interface {
+	UpdateMetric(ID string, MType string, Value any) error
+	GetMetricValue(ID string, MType string) (any, error)
+	GetAllMetricsValues() map[string]any
+	Host() string
+}
+
+func GetListHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		metricsValues := serverService.GetAllMetricsValues()
 
 		err := web.MetricsListPage(w, metricsValues)
 		if err != nil {
+			log.Printf("Error getting page with list of metrics: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -31,13 +39,20 @@ func GetListHandler(serverService models.Server) http.HandlerFunc {
 	}
 }
 
-func GetValueHandler(serverService models.Server) http.HandlerFunc {
+func GetValueHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", respContentTypeTextPlain)
 
 		mID := chi.URLParam(r, "metrics")
-		if !checkMetricID(mID) {
+
+		metricIDIsCorrect, err := checkMetricID(mID)
+		if err != nil {
+			log.Printf("ID validity analysis error: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if !metricIDIsCorrect {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -51,6 +66,7 @@ func GetValueHandler(serverService models.Server) http.HandlerFunc {
 		value, err := serverService.GetMetricValue(mID, mType)
 
 		if err != nil {
+			log.Printf("Error getting metric value: %v", err)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -60,7 +76,7 @@ func GetValueHandler(serverService models.Server) http.HandlerFunc {
 	}
 }
 
-func UpdateHandler(serverService models.Server) http.HandlerFunc {
+func UpdateHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Add("Content-type", respContentTypeTextPlain)
@@ -68,7 +84,14 @@ func UpdateHandler(serverService models.Server) http.HandlerFunc {
 		metricType := chi.URLParam(r, "mType")
 
 		metricID := chi.URLParam(r, "metrics")
-		if !checkMetricID(metricID) {
+
+		metricIDIsCorrect, err := checkMetricID(metricID)
+		if err != nil {
+			log.Printf("ID validity analysis error: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if !metricIDIsCorrect {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -80,31 +103,32 @@ func UpdateHandler(serverService models.Server) http.HandlerFunc {
 
 		value := chi.URLParam(r, "value")
 
-		var (
-			valueConverted any
-			err            error
-		)
+		var valueConverted any
 
 		switch metricType {
 		case metrics.Counter:
 			valueConverted, err = convertCounterValue(value)
 			if err != nil {
+				log.Printf("Incorrect counter value: %v", err)
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 		case metrics.Gauge:
 			valueConverted, err = convertGaugeValue(value)
 			if err != nil {
+				log.Printf("Incorrect gauge value: %v", err)
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 		default:
+			log.Printf("Incorrect metric type: %s", metricType)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		err = serverService.UpdateMetric(metricID, metricType, valueConverted)
 		if err != nil {
+			log.Printf("Error updating metrics: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -117,15 +141,15 @@ func checkMetricType(mType string) bool {
 
 func convertGaugeValue(valueStr string) (float64, error) {
 	value, err := strconv.ParseFloat(valueStr, 64)
-	return value, err
+	return value, fmt.Errorf("error converting string to gauge value (float64): %w", err)
 }
 
 func convertCounterValue(deltaStr string) (int64, error) {
 	delta, err := strconv.ParseInt(deltaStr, 10, 64)
-	return delta, err
+	return delta, fmt.Errorf("error converting string to counter value (int64): %w", err)
 }
 
-func checkMetricID(id string) bool {
-	match, _ := regexp.MatchString("^[a-zA-Z][a-zA-Z0-9]*$", id)
-	return match
+func checkMetricID(id string) (bool, error) {
+	match, err := regexp.MatchString("^[a-zA-Z][a-zA-Z0-9]*$", id)
+	return match, fmt.Errorf("error executing regular expression: %w", err)
 }

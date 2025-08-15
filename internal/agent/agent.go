@@ -151,12 +151,12 @@ func sendMetricsHTTP(client *resty.Client, host, mType, metricName string, value
 		SetHeader("Content-Type", contentTypeTextPlain).
 		Post(url)
 	if err != nil {
-		log.Println(err)
+		log.Printf("Error sending POST request to url %s: %v", url, err)
 		return
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		log.Println(resp.StatusCode())
+		log.Printf("Unexpected code while executing request to url %s: %d", url, resp.StatusCode())
 	}
 
 }

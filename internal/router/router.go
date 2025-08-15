@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
-	models "github.com/galogen13/yandex-go-metrics/internal/model"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -13,12 +12,12 @@ const (
 	respContentTypeTextPlain = "text/plain; charset=utf-8"
 )
 
-func Start(serverService models.Server) error {
+func Start(serverService handler.Server) error {
 	r := metricsRouter(serverService)
 	return http.ListenAndServe(serverService.Host(), r)
 }
 
-func metricsRouter(server models.Server) *chi.Mux {
+func metricsRouter(server handler.Server) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.NotFound(notFoundHandler())
