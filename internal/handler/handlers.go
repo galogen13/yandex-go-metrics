@@ -141,15 +141,24 @@ func checkMetricType(mType string) bool {
 
 func convertGaugeValue(valueStr string) (float64, error) {
 	value, err := strconv.ParseFloat(valueStr, 64)
-	return value, fmt.Errorf("error converting string to gauge value (float64): %w", err)
+	if err != nil {
+		return 0, fmt.Errorf("error converting string to gauge value (float64): %w", err)
+	}
+	return value, err
 }
 
 func convertCounterValue(deltaStr string) (int64, error) {
 	delta, err := strconv.ParseInt(deltaStr, 10, 64)
-	return delta, fmt.Errorf("error converting string to counter value (int64): %w", err)
+	if err != nil {
+		return 0, fmt.Errorf("error converting string to counter value (int64): %w", err)
+	}
+	return delta, err
 }
 
 func checkMetricID(id string) (bool, error) {
 	match, err := regexp.MatchString("^[a-zA-Z][a-zA-Z0-9]*$", id)
-	return match, fmt.Errorf("error executing regular expression: %w", err)
+	if err != nil {
+		return false, fmt.Errorf("error executing regular expression: %w", err)
+	}
+	return match, err
 }

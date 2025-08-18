@@ -17,6 +17,7 @@ import (
 
 const (
 	contentTypeTextPlain = "text/plain"
+	pollCounterName      = "PollCount"
 )
 
 type Agent struct {
@@ -59,6 +60,14 @@ type agentMetrics struct {
 	RandomValue float64
 }
 
+func (metrics agentMetrics) isPollCounter(name string) bool {
+	return name == pollCounterName
+}
+
+func (metrics *agentMetrics) resetPollCounter() {
+	metrics.PollCount = 0
+}
+
 func Start(config config.AgentConfig) {
 
 	agent := NewAgent(config.Host)
@@ -70,7 +79,7 @@ func Start(config config.AgentConfig) {
 		case <-tickerPoll.C:
 			agent.updateMetrics()
 		case <-tickerReport.C:
-			go agent.sendMetrics()
+			agent.sendMetrics()
 		}
 	}
 }
@@ -114,7 +123,7 @@ func (agent *Agent) updateMetrics() {
 
 }
 
-func (agent Agent) sendMetrics() {
+func (agent *Agent) sendMetrics() {
 
 	if agent.metrics.PollCount == 0 {
 		return
@@ -134,17 +143,24 @@ func (agent Agent) sendMetrics() {
 		field := t.Field(i)
 		fieldValue := v.Field(i)
 
+		metricSentSuccess := false
+
 		switch fieldValue.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			sendMetricsHTTP(client, agent.host, metrics.Counter, field.Name, fieldValue.Int())
+			metricSentSuccess = sendMetricsHTTP(client, agent.host, metrics.Counter, field.Name, fieldValue.Int())
 		case reflect.Float32, reflect.Float64:
-			sendMetricsHTTP(client, agent.host, metrics.Gauge, field.Name, fieldValue.Float())
+			metricSentSuccess = sendMetricsHTTP(client, agent.host, metrics.Gauge, field.Name, fieldValue.Float())
+		default:
+			log.Printf("Unexpected metric type when sending to server")
+		}
+		if metricSentSuccess && agent.metrics.isPollCounter(field.Name) {
+			agent.metrics.resetPollCounter()
 		}
 
 	}
 }
 
-func sendMetricsHTTP(client *resty.Client, host, mType, metricName string, value any) {
+func sendMetricsHTTP(client *resty.Client, host, mType, metricName string, value any) bool {
 
 	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, mType, metricName, value)
 	resp, err := client.R().
@@ -152,11 +168,14 @@ func sendMetricsHTTP(client *resty.Client, host, mType, metricName string, value
 		Post(url)
 	if err != nil {
 		log.Printf("Error sending POST request to url %s: %v", url, err)
-		return
+		return false
 	}
 
 	if resp.StatusCode() != http.StatusOK {
 		log.Printf("Unexpected code while executing request to url %s: %d", url, resp.StatusCode())
+		return false
 	}
+
+	return true
 
 }
