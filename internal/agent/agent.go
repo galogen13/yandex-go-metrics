@@ -5,7 +5,6 @@ import (
 	"log"
 	"math/rand/v2"
 	"net/http"
-	"reflect"
 	"runtime"
 	"time"
 
@@ -21,56 +20,26 @@ const (
 )
 
 type Agent struct {
-	metrics agentMetrics
-	host    string
+	metrics   []metrics.Metric
+	config    config.AgentConfig
+	PollCount int64
 }
 
-type agentMetrics struct {
-	// runtime.MemStats
-	Alloc         float64
-	BuckHashSys   float64
-	Frees         float64
-	GCCPUFraction float64
-	GCSys         float64
-	HeapAlloc     float64
-	HeapIdle      float64
-	HeapInuse     float64
-	HeapObjects   float64
-	HeapReleased  float64
-	HeapSys       float64
-	LastGC        float64
-	Lookups       float64
-	MCacheInuse   float64
-	MCacheSys     float64
-	MSpanInuse    float64
-	MSpanSys      float64
-	Mallocs       float64
-	NextGC        float64
-	NumForcedGC   float64
-	NumGC         float64
-	OtherSys      float64
-	PauseTotalNs  float64
-	StackInuse    float64
-	StackSys      float64
-	Sys           float64
-	TotalAlloc    float64
-
-	// additional
-	PollCount   int64
-	RandomValue float64
-}
-
-func (metrics agentMetrics) isPollCounter(name string) bool {
+func (agent Agent) metricIsPollCounter(name string) bool {
 	return name == pollCounterName
 }
 
-func (metrics *agentMetrics) resetPollCounter() {
-	metrics.PollCount = 0
+func (agent *Agent) increaseСounter() {
+	agent.PollCount++
+}
+
+func (agent *Agent) resetPollCounter() {
+	agent.PollCount = 0
 }
 
 func Start(config config.AgentConfig) {
 
-	agent := NewAgent(config.Host)
+	agent := NewAgent(config)
 
 	tickerPoll := time.NewTicker(time.Duration(config.PollInterval) * time.Second)
 	tickerReport := time.NewTicker(time.Duration(config.ReportInterval) * time.Second)
@@ -84,48 +53,184 @@ func Start(config config.AgentConfig) {
 	}
 }
 
-func NewAgent(hostAddr string) *Agent {
-	return &Agent{host: hostAddr, metrics: agentMetrics{}}
+func NewAgent(agentConfig config.AgentConfig) *Agent {
+	return &Agent{config: agentConfig, metrics: []metrics.Metric{}, PollCount: 0}
 }
 
 func (agent *Agent) updateMetrics() {
 	var rtm runtime.MemStats
 	runtime.ReadMemStats(&rtm)
-	agent.metrics.Alloc = float64(rtm.Alloc)
-	agent.metrics.BuckHashSys = float64(rtm.BuckHashSys)
-	agent.metrics.Frees = float64(rtm.Frees)
-	agent.metrics.GCCPUFraction = float64(rtm.GCCPUFraction)
-	agent.metrics.GCSys = float64(rtm.GCSys)
-	agent.metrics.HeapAlloc = float64(rtm.HeapAlloc)
-	agent.metrics.HeapIdle = float64(rtm.HeapIdle)
-	agent.metrics.HeapInuse = float64(rtm.HeapInuse)
-	agent.metrics.HeapObjects = float64(rtm.HeapObjects)
-	agent.metrics.HeapReleased = float64(rtm.HeapReleased)
-	agent.metrics.HeapSys = float64(rtm.HeapSys)
-	agent.metrics.LastGC = float64(rtm.LastGC)
-	agent.metrics.Lookups = float64(rtm.Lookups)
-	agent.metrics.MCacheInuse = float64(rtm.MCacheInuse)
-	agent.metrics.MCacheSys = float64(rtm.MCacheSys)
-	agent.metrics.MSpanInuse = float64(rtm.MSpanInuse)
-	agent.metrics.MSpanSys = float64(rtm.MSpanSys)
-	agent.metrics.Mallocs = float64(rtm.Mallocs)
-	agent.metrics.NextGC = float64(rtm.NextGC)
-	agent.metrics.NumForcedGC = float64(rtm.NumForcedGC)
-	agent.metrics.NumGC = float64(rtm.NumGC)
-	agent.metrics.OtherSys = float64(rtm.OtherSys)
-	agent.metrics.PauseTotalNs = float64(rtm.PauseTotalNs)
-	agent.metrics.StackInuse = float64(rtm.StackInuse)
-	agent.metrics.StackSys = float64(rtm.StackSys)
-	agent.metrics.Sys = float64(rtm.Sys)
-	agent.metrics.TotalAlloc = float64(rtm.TotalAlloc)
-	agent.metrics.PollCount++
-	agent.metrics.RandomValue = rand.Float64()
+	agent.metrics = []metrics.Metric{}
 
+	err := agent.addNewGaugeMetric("Alloc", float64(rtm.Alloc))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("BuckHashSys", float64(rtm.BuckHashSys))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("Frees", float64(rtm.Frees))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("GCCPUFraction", float64(rtm.GCCPUFraction))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("GCSys", float64(rtm.GCSys))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("HeapAlloc", float64(rtm.HeapAlloc))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("HeapIdle", float64(rtm.HeapIdle))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("HeapInuse", float64(rtm.HeapInuse))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("HeapObjects", float64(rtm.HeapObjects))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("HeapReleased", float64(rtm.HeapReleased))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("HeapSys", float64(rtm.HeapSys))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("LastGC", float64(rtm.LastGC))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("Lookups", float64(rtm.Lookups))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("MCacheInuse", float64(rtm.MCacheInuse))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("MCacheSys", float64(rtm.MCacheSys))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("MSpanInuse", float64(rtm.MSpanInuse))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("MSpanSys", float64(rtm.MSpanSys))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("Mallocs", float64(rtm.Mallocs))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("NextGC", float64(rtm.NextGC))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("NumForcedGC", float64(rtm.NumForcedGC))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("NumGC", float64(rtm.NumGC))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("OtherSys", float64(rtm.OtherSys))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("PauseTotalNs", float64(rtm.PauseTotalNs))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("StackInuse", float64(rtm.StackInuse))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("StackSys", float64(rtm.StackSys))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("Sys", float64(rtm.Sys))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("TotalAlloc", float64(rtm.TotalAlloc))
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	err = agent.addNewGaugeMetric("RandomValue", rand.Float64())
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+	agent.increaseСounter()
+	err = agent.addNewCounterMetric(pollCounterName, agent.PollCount)
+	if err != nil {
+		log.Printf("error updating agent metric values: %v", err)
+	}
+
+}
+
+func (agent *Agent) addNewGaugeMetric(mID string, value float64) error {
+	metric := metrics.NewMetrics(mID, metrics.Gauge)
+	if err := metric.UpdateValue(value); err != nil {
+		return fmt.Errorf("error adding new gauge metric ID: %s, mType: %s, value: %v, err: %w", metric.ID, metric.MType, value, err)
+	}
+	agent.metrics = append(agent.metrics, metric)
+	return nil
+}
+
+func (agent *Agent) addNewCounterMetric(mID string, value int64) error {
+	metric := metrics.NewMetrics(mID, metrics.Counter)
+	if err := metric.UpdateValue(value); err != nil {
+		return fmt.Errorf("error adding new counter metric ID: %s, mType: %s, value: %v, err: %w", metric.ID, metric.MType, value, err)
+	}
+	agent.metrics = append(agent.metrics, metric)
+	return nil
 }
 
 func (agent *Agent) sendMetrics() {
 
-	if agent.metrics.PollCount == 0 {
+	if len(agent.metrics) == 0 {
 		return
 	}
 
@@ -136,46 +241,29 @@ func (agent *Agent) sendMetrics() {
 			return nil
 		}))
 
-	v := reflect.ValueOf(agent.metrics)
-	t := v.Type()
-
-	for i := 0; i < v.NumField(); i++ {
-		field := t.Field(i)
-		fieldValue := v.Field(i)
-
-		metricSentSuccess := false
-
-		switch fieldValue.Kind() {
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			metricSentSuccess = sendMetricsHTTP(client, agent.host, metrics.Counter, field.Name, fieldValue.Int())
-		case reflect.Float32, reflect.Float64:
-			metricSentSuccess = sendMetricsHTTP(client, agent.host, metrics.Gauge, field.Name, fieldValue.Float())
-		default:
-			log.Printf("Unexpected metric type when sending to server")
+	for _, metric := range agent.metrics {
+		err := sendMetricsHTTP(client, agent.config.Host, metric)
+		if err == nil && agent.metricIsPollCounter(metric.ID) {
+			agent.resetPollCounter()
 		}
-		if metricSentSuccess && agent.metrics.isPollCounter(field.Name) {
-			agent.metrics.resetPollCounter()
-		}
-
 	}
+
 }
 
-func sendMetricsHTTP(client *resty.Client, host, mType, metricName string, value any) bool {
+func sendMetricsHTTP(client *resty.Client, host string, metric metrics.Metric) error {
 
-	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, mType, metricName, value)
+	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, metric.MType, metric.ID, metric.GetValue())
 	resp, err := client.R().
 		SetHeader("Content-Type", contentTypeTextPlain).
 		Post(url)
 	if err != nil {
-		log.Printf("Error sending POST request to url %s: %v", url, err)
-		return false
+		return fmt.Errorf("error sending POST request to url %s: %w", url, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		log.Printf("Unexpected code while executing request to url %s: %d", url, resp.StatusCode())
-		return false
+		return fmt.Errorf("unexpected code while executing request to url %s: %d", url, resp.StatusCode())
 	}
 
-	return true
+	return nil
 
 }
