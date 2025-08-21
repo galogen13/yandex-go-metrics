@@ -14,7 +14,10 @@ func main() {
 }
 
 func run() error {
-	config := config.GetAgentConfig()
+	config, err := config.GetAgentConfig()
+	if err != nil {
+		return err
+	}
 	agent.Start(config)
 
 	return nil
