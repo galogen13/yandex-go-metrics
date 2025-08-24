@@ -3,14 +3,15 @@ package handler
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
 	"strconv"
 
+	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 	"github.com/galogen13/yandex-go-metrics/internal/web"
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 )
 
 const (
@@ -29,12 +30,14 @@ func GetListHandler(serverService Server) http.HandlerFunc {
 
 		metricsValues := serverService.GetAllMetricsValues()
 
-		err := web.MetricsListPage(w, metricsValues)
+		buf, err := web.MetricsListPage(metricsValues)
 		if err != nil {
-			log.Printf("Error getting page with list of metrics: %v", err)
+			logger.Log.Error("Error getting page with list of metrics", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(buf.Bytes())
 
 	}
 }
@@ -48,7 +51,7 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 
 		metricIDIsCorrect, err := checkMetricID(mID)
 		if err != nil {
-			log.Printf("ID validity analysis error: %v", err)
+			logger.Log.Error("ID validity analysis error", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -66,11 +69,11 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 		value, err := serverService.GetMetricValue(mID, mType)
 
 		if err != nil {
-			log.Printf("Error getting metric value: %v", err)
+			logger.Log.Error("Error getting metric value", zap.Error(err))
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-
+		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, fmt.Sprintf("%v", value))
 
 	}
@@ -87,7 +90,7 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 
 		metricIDIsCorrect, err := checkMetricID(metricID)
 		if err != nil {
-			log.Printf("ID validity analysis error: %v", err)
+			logger.Log.Error("ID validity analysis error", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -109,29 +112,30 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 		case metrics.Counter:
 			valueConverted, err = convertCounterValue(value)
 			if err != nil {
-				log.Printf("Incorrect counter value: %v", err)
+				logger.Log.Error("Incorrect counter value", zap.Error(err))
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 		case metrics.Gauge:
 			valueConverted, err = convertGaugeValue(value)
 			if err != nil {
-				log.Printf("Incorrect gauge value: %v", err)
+				logger.Log.Error("Incorrect gauge value", zap.Error(err))
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 		default:
-			log.Printf("Incorrect metric type: %s", metricType)
+			logger.Log.Error("Incorrect metric type", zap.String("mType", metricType))
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		err = serverService.UpdateMetric(metricID, metricType, valueConverted)
 		if err != nil {
-			log.Printf("Error updating metrics: %v", err)
+			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		w.WriteHeader(http.StatusOK)
 	}
 }
 

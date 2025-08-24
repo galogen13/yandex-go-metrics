@@ -4,7 +4,9 @@ import (
 	"net/http"
 
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
+	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 )
 
 const (
@@ -14,6 +16,7 @@ const (
 
 func Start(serverService handler.Server) error {
 	r := metricsRouter(serverService)
+	logger.Log.Info("Running server", zap.String("address", serverService.Host()))
 	return http.ListenAndServe(serverService.Host(), r)
 }
 
@@ -23,9 +26,9 @@ func metricsRouter(server handler.Server) *chi.Mux {
 	r.NotFound(notFoundHandler())
 	r.MethodNotAllowed(methodNotAllowedHandler())
 
-	r.Get("/", handler.GetListHandler(server))
-	r.Post("/update/{mType}/{metrics}/{value}", handler.UpdateHandler(server))
-	r.Get("/value/{mType}/{metrics}", handler.GetValueHandler(server))
+	r.Get("/", logger.RequestLogger(handler.GetListHandler(server)))
+	r.Post("/update/{mType}/{metrics}/{value}", logger.RequestLogger(handler.UpdateHandler(server)))
+	r.Get("/value/{mType}/{metrics}", logger.RequestLogger(handler.GetValueHandler(server)))
 
 	return r
 }

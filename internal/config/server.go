@@ -6,17 +6,25 @@ import (
 )
 
 type ServerConfig struct {
-	Host string
+	Host     string
+	LogLevel string
 }
 
 func GetServerConfig() ServerConfig {
 
-	hostAddress := os.Getenv("ADDRESS")
+	hostAddressFlag := flag.String("a", "localhost:8080", "host address")
+	logLevelFlag := flag.String("l", "info", "log level")
+	flag.Parse()
 
+	hostAddress := os.Getenv("ADDRESS")
 	if hostAddress == "" {
-		hostAddressFlag := flag.String("a", "localhost:8080", "host address")
-		flag.Parse()
 		hostAddress = *hostAddressFlag
 	}
-	return ServerConfig{Host: hostAddress}
+
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = *logLevelFlag
+	}
+
+	return ServerConfig{Host: hostAddress, LogLevel: logLevel}
 }
