@@ -29,7 +29,7 @@ func (agent Agent) metricIsPollCounter(name string) bool {
 	return name == pollCounterName
 }
 
-func (agent *Agent) increaseСounter() {
+func (agent *Agent) increasePollСounter() {
 	agent.PollCount++
 }
 
@@ -202,7 +202,7 @@ func (agent *Agent) updateMetrics() {
 		log.Printf("error updating agent metric values: %v", err)
 	}
 
-	agent.increaseСounter()
+	agent.increasePollСounter()
 	err = agent.addNewCounterMetric(pollCounterName, agent.PollCount)
 	if err != nil {
 		log.Printf("error updating agent metric values: %v", err)
@@ -243,7 +243,11 @@ func (agent *Agent) sendMetrics() {
 
 	for _, metric := range agent.metrics {
 		err := sendMetricsHTTP(client, agent.config.Host, metric)
-		if err == nil && agent.metricIsPollCounter(metric.ID) {
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		if agent.metricIsPollCounter(metric.ID) {
 			agent.resetPollCounter()
 		}
 	}
