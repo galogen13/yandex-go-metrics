@@ -27,8 +27,10 @@ func metricsRouter(server handler.Server) *chi.Mux {
 	r.MethodNotAllowed(methodNotAllowedHandler())
 
 	r.Get("/", logger.RequestLogger(handler.GetListHandler(server)))
-	r.Post("/update/{mType}/{metrics}/{value}", logger.RequestLogger(handler.UpdateHandler(server)))
-	r.Get("/value/{mType}/{metrics}", logger.RequestLogger(handler.GetValueHandler(server)))
+	r.Post("/update/{mType}/{metrics}/{value}", logger.RequestLogger(handler.UpdateURLHandler(server)))
+	r.Get("/value/{mType}/{metrics}", logger.RequestLogger(handler.GetValueURLHandler(server)))
+	r.Post("/update", logger.RequestLogger(handler.UpdateHandler(server)))
+	r.Get("/value", logger.RequestLogger(handler.GetValueHandler(server)))
 
 	return r
 }

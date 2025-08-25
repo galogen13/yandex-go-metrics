@@ -1,12 +1,19 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 )
 
 const (
 	Counter = "counter"
 	Gauge   = "gauge"
+)
+
+var (
+	ErrMetricValidation = errors.New("metric validation error")
+	ErrMetricNotExists  = errors.New("metric not exists error")
 )
 
 // NOTE: Не усложняем пример, вводя иерархическую вложенность структур.
@@ -19,24 +26,15 @@ type Metric struct {
 	MType string   `json:"type"`
 	Delta *int64   `json:"delta,omitempty"`
 	Value *float64 `json:"value,omitempty"`
-	Hash  string   `json:"hash,omitempty"`
+	Hash  string   `json:"-"` //`json:"hash,omitempty"`
 }
 
 func NewMetrics(ID string, MType string) Metric {
-
 	metric := Metric{}
 	metric.ID = ID
 	metric.MType = MType
 
 	return metric
-
-}
-
-func (metric Metric) CheckType(MType string) error {
-	if metric.MType != MType {
-		return fmt.Errorf("metric type does not match incoming metric type. expected: %s, have: %s", metric.MType, MType)
-	}
-	return nil
 }
 
 func (metric *Metric) UpdateValue(Value any) error {
@@ -89,6 +87,34 @@ func GetMetricsValues(metricsList []Metric) map[string]any {
 	return result
 }
 
+func (metric Metric) Check(checkValue bool) error {
+	metricIDIsCorrect, err := metric.checkID()
+	if err != nil {
+		return fmt.Errorf("error when checking metric: %w", err)
+	}
+	if !metricIDIsCorrect {
+		return fmt.Errorf("%w: metric ID is incorrect: %s", ErrMetricValidation, metric.ID)
+	}
+
+	if !metric.checkType() {
+		return fmt.Errorf("%w: metric type is incorrect: %s", ErrMetricValidation, metric.MType)
+	}
+
+	if checkValue {
+		if !metric.checkValue() {
+			return fmt.Errorf("%w: metric value is incorrect: MType: %s, Delta: %v, Value: %v", ErrMetricValidation, metric.MType, metric.Delta, metric.Value)
+		}
+	}
+	return nil
+}
+
+func (metric Metric) CompareTypes(MType string) error {
+	if metric.MType != MType {
+		return fmt.Errorf("%w: metric type does not match incoming metric type. expected: %s, have: %s", ErrMetricValidation, metric.MType, MType)
+	}
+	return nil
+}
+
 func gaugeValue(Value any) (float64, error) {
 	metricsValue, ok := Value.(float64)
 	if !ok {
@@ -103,4 +129,26 @@ func counterValue(Value any) (int64, error) {
 		return 0, fmt.Errorf("value conversion error to int64: %v", Value)
 	}
 	return metricsValue, nil
+}
+
+func (metric Metric) checkType() bool {
+	return metric.MType == Counter || metric.MType == Gauge
+}
+
+func (metric Metric) checkID() (bool, error) {
+	match, err := regexp.MatchString("^[a-zA-Z][a-zA-Z0-9]*$", metric.ID)
+	if err != nil {
+		return false, fmt.Errorf("error executing regular expression: %w", err)
+	}
+	return match, nil
+}
+
+func (metric Metric) checkValue() bool {
+	switch metric.MType {
+	case Gauge:
+		return metric.Value != nil
+	case Counter:
+		return metric.Delta != nil
+	}
+	return false
 }

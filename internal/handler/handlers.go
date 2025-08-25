@@ -1,10 +1,11 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strconv"
 
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
@@ -19,8 +20,8 @@ const (
 )
 
 type Server interface {
-	UpdateMetric(ID string, MType string, Value any) error
-	GetMetricValue(ID string, MType string) (any, error)
+	UpdateMetric(metric metrics.Metric) error
+	GetMetric(metric metrics.Metric) (metrics.Metric, error)
 	GetAllMetricsValues() map[string]any
 	Host() string
 }
@@ -45,37 +46,31 @@ func GetListHandler(serverService Server) http.HandlerFunc {
 func GetValueHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		w.Header().Set("Content-Type", respContentTypeTextPlain)
+		//w.Header().Set("Content-Type", respContentTypeTextPlain)
 
-		mID := chi.URLParam(r, "metrics")
+		metric := metrics.Metric{}
+		if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+			logger.Log.Error("JSON decoding error", zap.Error(err))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
-		metricIDIsCorrect, err := checkMetricID(mID)
+		metric, err := serverService.GetMetric(metric)
 		if err != nil {
-			logger.Log.Error("ID validity analysis error", zap.Error(err))
+			logger.Log.Error("Error getting metric", zap.Error(err))
+			w.WriteHeader(resolveHTTPStatus(err))
+			return
+		}
+
+		resp, err := json.Marshal(metric)
+		if err != nil {
+			logger.Log.Error("Error marshaling metric", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if !metricIDIsCorrect {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		mType := chi.URLParam(r, "mType")
-		if !checkMetricType(mType) {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		value, err := serverService.GetMetricValue(mID, mType)
-
-		if err != nil {
-			logger.Log.Error("Error getting metric value", zap.Error(err))
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, fmt.Sprintf("%v", value))
-
+		w.Write(resp)
 	}
 }
 
@@ -84,29 +79,58 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 
 		w.Header().Add("Content-type", respContentTypeTextPlain)
 
-		metricType := chi.URLParam(r, "mType")
+		metric := metrics.Metric{}
+		if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+			logger.Log.Error("JSON decoding error", zap.Error(err))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
-		metricID := chi.URLParam(r, "metrics")
-
-		metricIDIsCorrect, err := checkMetricID(metricID)
+		err := serverService.UpdateMetric(metric)
 		if err != nil {
-			logger.Log.Error("ID validity analysis error", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
+			logger.Log.Error("Error updating metrics", zap.Error(err))
+			w.WriteHeader(resolveHTTPStatus(err))
 			return
 		}
-		if !metricIDIsCorrect {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+		w.WriteHeader(http.StatusOK)
+	}
+}
 
-		if !checkMetricType(metricType) {
-			w.WriteHeader(http.StatusBadRequest)
+func GetValueURLHandler(serverService Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		mID := chi.URLParam(r, "metrics")
+		mType := chi.URLParam(r, "mType")
+
+		metric := metrics.NewMetrics(mID, mType)
+
+		metric, err := serverService.GetMetric(metric)
+
+		if err != nil {
+			logger.Log.Error("Error getting metric value", zap.Error(err))
+			w.WriteHeader(resolveHTTPStatus(err))
 			return
 		}
+		w.Header().Set("Content-Type", respContentTypeTextPlain)
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, fmt.Sprintf("%v", metric.GetValue()))
 
+	}
+}
+
+func UpdateURLHandler(serverService Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		w.Header().Add("Content-type", respContentTypeTextPlain)
+
+		metricType := chi.URLParam(r, "mType")
+		metricID := chi.URLParam(r, "metrics")
 		value := chi.URLParam(r, "value")
 
-		var valueConverted any
+		var (
+			valueConverted any
+			err            error
+		)
 
 		switch metricType {
 		case metrics.Counter:
@@ -129,18 +153,22 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 
-		err = serverService.UpdateMetric(metricID, metricType, valueConverted)
+		metric := metrics.NewMetrics(metricID, metricType)
+		if err = metric.UpdateValue(valueConverted); err != nil {
+			logger.Log.Error("Incorrect metric value",
+				zap.Any("type", metric.MType),
+				zap.Any("value", valueConverted))
+			w.WriteHeader(http.StatusBadRequest)
+		}
+
+		err = serverService.UpdateMetric(metric)
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(resolveHTTPStatus(err))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
 	}
-}
-
-func checkMetricType(mType string) bool {
-	return mType == metrics.Counter || mType == metrics.Gauge
 }
 
 func convertGaugeValue(valueStr string) (float64, error) {
@@ -148,7 +176,7 @@ func convertGaugeValue(valueStr string) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("error converting string to gauge value (float64): %w", err)
 	}
-	return value, err
+	return value, nil
 }
 
 func convertCounterValue(deltaStr string) (int64, error) {
@@ -156,13 +184,13 @@ func convertCounterValue(deltaStr string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("error converting string to counter value (int64): %w", err)
 	}
-	return delta, err
+	return delta, nil
 }
 
-func checkMetricID(id string) (bool, error) {
-	match, err := regexp.MatchString("^[a-zA-Z][a-zA-Z0-9]*$", id)
-	if err != nil {
-		return false, fmt.Errorf("error executing regular expression: %w", err)
+func resolveHTTPStatus(err error) int {
+	if errors.Is(err, metrics.ErrMetricValidation) || errors.Is(err, metrics.ErrMetricNotExists) {
+		return http.StatusBadRequest
 	}
-	return match, err
+
+	return http.StatusInternalServerError
 }

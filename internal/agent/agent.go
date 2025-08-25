@@ -242,7 +242,13 @@ func (agent *Agent) sendMetrics() {
 		}))
 
 	for _, metric := range agent.metrics {
-		err := sendMetricsHTTP(client, agent.config.Host, metric)
+		var err error
+		switch agent.config.ApiFormat {
+		case config.ApiFormatJSON:
+			err = sendMetricsWithJSONBody(client, agent.config.Host, metric)
+		case config.ApiFormatURL:
+			err = sendMetricsViaPathParams(client, agent.config.Host, metric)
+		}
 		if err != nil {
 			log.Println(err)
 			continue
@@ -254,18 +260,37 @@ func (agent *Agent) sendMetrics() {
 
 }
 
-func sendMetricsHTTP(client *resty.Client, host string, metric metrics.Metric) error {
+func sendMetricsViaPathParams(client *resty.Client, host string, metric metrics.Metric) error {
 
 	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, metric.MType, metric.ID, metric.GetValue())
 	resp, err := client.R().
 		SetHeader("Content-Type", contentTypeTextPlain).
 		Post(url)
 	if err != nil {
-		return fmt.Errorf("error sending POST request to url %s: %w", url, err)
+		return fmt.Errorf("error sending POST request via path params to url %s: %w", url, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("unexpected code while executing request to url %s: %d", url, resp.StatusCode())
+		return fmt.Errorf("unexpected code while executing request via path params to url %s: %d", url, resp.StatusCode())
+	}
+
+	return nil
+
+}
+
+func sendMetricsWithJSONBody(client *resty.Client, host string, metric metrics.Metric) error {
+
+	url := fmt.Sprintf("http://%s/update", host)
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(metric).
+		Post(url)
+	if err != nil {
+		return fmt.Errorf("error sending POST request with JSON body to url %s: %w", url, err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("unexpected code while executing request with JSON body to url %s: %d", url, resp.StatusCode())
 	}
 
 	return nil
