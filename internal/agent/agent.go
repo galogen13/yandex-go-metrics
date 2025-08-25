@@ -280,6 +280,7 @@ func sendMetricsViaPathParams(client *resty.Client, host string, metric metrics.
 
 func sendMetricsWithJSONBody(client *resty.Client, host string, metric metrics.Metric) error {
 
+	log.Printf("prepairing to send metric ID: %s, MType: %s, value: %v", metric.ID, metric.MType, metric.GetValue())
 	url := fmt.Sprintf("http://%s/update", host)
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
