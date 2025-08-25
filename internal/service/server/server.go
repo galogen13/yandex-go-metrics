@@ -35,9 +35,12 @@ func (server *ServerService) UpdateMetric(incomingMetric metrics.Metric) error {
 		if err != nil {
 			return errUpdatingMetrics(err)
 		}
+		metric.UpdateValue(incomingMetric.GetValue())
+	} else {
+		metric = incomingMetric
 	}
 
-	server.Storage.Update(incomingMetric)
+	server.Storage.Update(metric)
 
 	return nil
 
