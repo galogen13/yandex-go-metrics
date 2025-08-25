@@ -29,7 +29,7 @@ func (agent Agent) metricIsPollCounter(name string) bool {
 	return name == pollCounterName
 }
 
-func (agent *Agent) increaseСounter() {
+func (agent *Agent) increasePollСounter() {
 	agent.PollCount++
 }
 
@@ -202,7 +202,7 @@ func (agent *Agent) updateMetrics() {
 		log.Printf("error updating agent metric values: %v", err)
 	}
 
-	agent.increaseСounter()
+	agent.increasePollСounter()
 	err = agent.addNewCounterMetric(pollCounterName, agent.PollCount)
 	if err != nil {
 		log.Printf("error updating agent metric values: %v", err)
@@ -242,26 +242,56 @@ func (agent *Agent) sendMetrics() {
 		}))
 
 	for _, metric := range agent.metrics {
-		err := sendMetricsHTTP(client, agent.config.Host, metric)
-		if err == nil && agent.metricIsPollCounter(metric.ID) {
+		var err error
+		switch agent.config.APIFormat {
+		case config.APIFormatJSON:
+			err = sendMetricsWithJSONBody(client, agent.config.Host, metric)
+		case config.APIFormatURL:
+			err = sendMetricsViaPathParams(client, agent.config.Host, metric)
+		}
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		if agent.metricIsPollCounter(metric.ID) {
 			agent.resetPollCounter()
 		}
 	}
 
 }
 
-func sendMetricsHTTP(client *resty.Client, host string, metric metrics.Metric) error {
+func sendMetricsViaPathParams(client *resty.Client, host string, metric metrics.Metric) error {
 
 	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, metric.MType, metric.ID, metric.GetValue())
 	resp, err := client.R().
 		SetHeader("Content-Type", contentTypeTextPlain).
 		Post(url)
 	if err != nil {
-		return fmt.Errorf("error sending POST request to url %s: %w", url, err)
+		return fmt.Errorf("error sending POST request via path params to url %s: %w", url, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("unexpected code while executing request to url %s: %d", url, resp.StatusCode())
+		return fmt.Errorf("unexpected code while executing request via path params to url %s: %d", url, resp.StatusCode())
+	}
+
+	return nil
+
+}
+
+func sendMetricsWithJSONBody(client *resty.Client, host string, metric metrics.Metric) error {
+
+	log.Printf("prepairing to send metric ID: %s, MType: %s, value: %v", metric.ID, metric.MType, metric.GetValue())
+	url := fmt.Sprintf("http://%s/update", host)
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(metric).
+		Post(url)
+	if err != nil {
+		return fmt.Errorf("error sending POST request with JSON body to url %s: %w", url, err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("unexpected code while executing request with JSON body to url %s: %d", url, resp.StatusCode())
 	}
 
 	return nil
