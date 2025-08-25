@@ -64,8 +64,8 @@ func TestUpdateValue(t *testing.T) {
 
 func Test_Check(t *testing.T) {
 
-	var value float64 = 0.31
-	var delta int64 = 14
+	value := 0.31
+	delta := int64(14)
 
 	tests := []struct {
 		name    string
