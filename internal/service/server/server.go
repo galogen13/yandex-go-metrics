@@ -9,7 +9,8 @@ import (
 
 type Storage interface {
 	Update(metric metrics.Metric)
-	Get(ID string) (bool, metrics.Metric)
+	Get(metrics.Metric) (bool, metrics.Metric)
+	GetByID(ID string) (bool, metrics.Metric)
 	GetAll() []metrics.Metric
 }
 
@@ -28,7 +29,7 @@ func (server *ServerService) UpdateMetric(incomingMetric metrics.Metric) error {
 		return errUpdatingMetrics(err)
 	}
 
-	ok, metric := server.Storage.Get(incomingMetric.ID)
+	ok, metric := server.Storage.GetByID(incomingMetric.ID)
 	if ok {
 		err := metric.CompareTypes(incomingMetric.MType)
 		if err != nil {
@@ -48,14 +49,9 @@ func (server ServerService) GetMetric(incomingMetric metrics.Metric) (metrics.Me
 		return metrics.Metric{}, errGettingMetrics(err)
 	}
 
-	ok, metric := server.Storage.Get(incomingMetric.ID)
-	if ok {
-		err := metric.CompareTypes(incomingMetric.MType)
-		if err != nil {
-			return metrics.Metric{}, errGettingMetrics(err)
-		}
-	} else {
-		return metrics.Metric{}, fmt.Errorf("%w: ID: %s, mType: %s", metrics.ErrMetricNotExists, incomingMetric.ID, incomingMetric.MType)
+	ok, metric := server.Storage.Get(incomingMetric)
+	if !ok {
+		return metrics.Metric{}, fmt.Errorf("%w: ID: %s, mType: %s", metrics.ErrMetricNotFound, incomingMetric.ID, incomingMetric.MType)
 	}
 
 	return metric, nil

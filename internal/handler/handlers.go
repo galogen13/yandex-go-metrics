@@ -99,19 +99,19 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 func GetValueURLHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
+		w.Header().Set("Content-Type", respContentTypeTextPlain)
+
 		mID := chi.URLParam(r, "metrics")
 		mType := chi.URLParam(r, "mType")
 
 		metric := metrics.NewMetrics(mID, mType)
 
 		metric, err := serverService.GetMetric(metric)
-
 		if err != nil {
 			logger.Log.Error("Error getting metric value", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))
 			return
 		}
-		w.Header().Set("Content-Type", respContentTypeTextPlain)
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, fmt.Sprintf("%v", metric.GetValue()))
 
@@ -188,8 +188,12 @@ func convertCounterValue(deltaStr string) (int64, error) {
 }
 
 func resolveHTTPStatus(err error) int {
-	if errors.Is(err, metrics.ErrMetricValidation) || errors.Is(err, metrics.ErrMetricNotExists) {
+	if errors.Is(err, metrics.ErrMetricValidation) {
 		return http.StatusBadRequest
+	}
+
+	if errors.Is(err, metrics.ErrMetricNotFound) {
+		return http.StatusNotFound
 	}
 
 	return http.StatusInternalServerError

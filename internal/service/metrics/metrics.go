@@ -13,7 +13,7 @@ const (
 
 var (
 	ErrMetricValidation = errors.New("metric validation error")
-	ErrMetricNotExists  = errors.New("metric not exists error")
+	ErrMetricNotFound   = errors.New("metric not found")
 )
 
 // NOTE: Не усложняем пример, вводя иерархическую вложенность структур.

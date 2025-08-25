@@ -243,10 +243,10 @@ func (agent *Agent) sendMetrics() {
 
 	for _, metric := range agent.metrics {
 		var err error
-		switch agent.config.ApiFormat {
-		case config.ApiFormatJSON:
+		switch agent.config.APIFormat {
+		case config.APIFormatJSON:
 			err = sendMetricsWithJSONBody(client, agent.config.Host, metric)
-		case config.ApiFormatURL:
+		case config.APIFormatURL:
 			err = sendMetricsViaPathParams(client, agent.config.Host, metric)
 		}
 		if err != nil {

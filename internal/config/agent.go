@@ -8,15 +8,15 @@ import (
 )
 
 const (
-	ApiFormatJSON string = "json"
-	ApiFormatURL  string = "url"
+	APIFormatJSON string = "json"
+	APIFormatURL  string = "url"
 )
 
 type AgentConfig struct {
 	Host           string `env:"ADDRESS"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
-	ApiFormat      string `env:"API_FORMAT"`
+	APIFormat      string `env:"API_FORMAT"`
 }
 
 func GetAgentConfig() (AgentConfig, error) {
@@ -31,7 +31,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	hostAddress := flag.String("a", "localhost:8080", "host address")
 	reportInterval := flag.Int("r", 10, "report interval, seconds")
 	pollInterval := flag.Int("p", 2, "poll interval, seconds")
-	apiFormat := flag.String("f", ApiFormatJSON, "API format")
+	apiFormat := flag.String("f", APIFormatJSON, fmt.Sprintf("API format: %s or %s", APIFormatJSON, APIFormatURL))
 	flag.Parse()
 
 	if cfg.Host == "" {
@@ -46,12 +46,12 @@ func GetAgentConfig() (AgentConfig, error) {
 		cfg.PollInterval = *pollInterval
 	}
 
-	if cfg.ApiFormat == "" {
-		cfg.ApiFormat = *apiFormat
+	if cfg.APIFormat == "" {
+		cfg.APIFormat = *apiFormat
 	}
 
-	if cfg.ApiFormat != ApiFormatJSON && cfg.ApiFormat != ApiFormatURL {
-		return AgentConfig{}, fmt.Errorf("unexpected api format: %v", cfg.ApiFormat)
+	if cfg.APIFormat != APIFormatJSON && cfg.APIFormat != APIFormatURL {
+		return AgentConfig{}, fmt.Errorf("unexpected api format: %v", cfg.APIFormat)
 	}
 
 	return cfg, nil
