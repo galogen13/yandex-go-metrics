@@ -46,7 +46,7 @@ func GetListHandler(serverService Server) http.HandlerFunc {
 func GetValueHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		//w.Header().Set("Content-Type", respContentTypeTextPlain)
+		w.Header().Set("Content-Type", respContentTypeTextPlain)
 
 		metric := metrics.Metric{}
 		if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
@@ -77,7 +77,7 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 func UpdateHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		w.Header().Add("Content-type", respContentTypeTextPlain)
+		w.Header().Set("Content-type", respContentTypeTextPlain)
 
 		metric := metrics.Metric{}
 		if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {

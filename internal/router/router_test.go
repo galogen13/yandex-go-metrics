@@ -44,6 +44,209 @@ func TestRouter_Update(t *testing.T) {
 		storage     server.Storage
 		method      string
 		url         string
+		body        string
+		contentType string
+		want        wantStruct
+	}{
+		{name: "Успешное добавление gauge в пустое хранилище",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","type":"gauge","value":200}`,
+			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Успешное добавление в непустое хранилище",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","type":"gauge","value":400}`,
+			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Повторное добавление в непустое хранилище с некорректным типом",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","type":"counter","value":600}`,
+			want:        wantStruct{status: http.StatusBadRequest, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Успешное добавление counter в непустое хранилище",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Counter","type":"counter","delta":1}`,
+			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Некорректный url - нет типа метрики",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","value":200}`,
+			want:        wantStruct{status: http.StatusBadRequest, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Некорректное значение",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Counter","type":"counter","delta":sdf}`,
+			want:        wantStruct{status: http.StatusBadRequest, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Некорректное значение для counter",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Counter","type":"counter","delta":0.01}`,
+			want:        wantStruct{status: http.StatusBadRequest, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Некорректный url",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/updateeeeee",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","type":"gauge","value":200}`,
+			want:        wantStruct{status: http.StatusNotFound, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Некорректный тип метрики",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Counter","type":"counterrra","delta":1}`,
+			want:        wantStruct{status: http.StatusBadRequest, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Некорректный метод: GET вместо POST",
+			storage:     stor,
+			method:      http.MethodGet,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","type":"gauge","value":400}`,
+			want:        wantStruct{status: http.StatusMethodNotAllowed, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Некорректный метод 2: PUT вместо POST",
+			storage:     stor,
+			method:      http.MethodPut,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","type":"gauge","value":400}`,
+			want:        wantStruct{status: http.StatusMethodNotAllowed, response: "", contentType: respContentTypeTextPlain}},
+	}
+	for _, test := range tests {
+		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
+		resp := testRequest(t, ts, test.method, test.url, test.contentType, test.body)
+		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
+		assert.Equal(t, test.want.response, resp.Body, test.name)
+		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
+	}
+}
+
+func TestRouter_Get(t *testing.T) {
+
+	type wantStruct struct {
+		status      int
+		response    string
+		contentType string
+	}
+
+	stor := storage.NewMemStorage()
+	config := config.ServerConfig{Host: "localhost:8080"}
+
+	serverService := server.NewServerService(config, stor)
+
+	ts := httptest.NewServer(metricsRouter(serverService))
+	defer ts.Close()
+
+	tests := []struct {
+		name        string
+		storage     server.Storage
+		method      string
+		url         string
+		contentType string
+		body        string
+		want        wantStruct
+	}{
+		{name: "Успешное добавление gauge в пустое хранилище",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","type":"gauge","value":20.99}`,
+			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Успешное получение значения gauge",
+			storage:     stor,
+			method:      http.MethodGet,
+			url:         "/value",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","type":"gauge"}`,
+			want:        wantStruct{status: http.StatusOK, response: `{"id":"Alloc","type":"gauge","value":20.99}`, contentType: "application/json"}},
+		{name: "Некорректный тип метрики",
+			storage:     stor,
+			method:      http.MethodGet,
+			url:         "/value",
+			contentType: "application/json",
+			body:        `{"id":"Alloc","type":"counter"}`,
+			want:        wantStruct{status: http.StatusNotFound, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Несуществующая метрика",
+			storage:     stor,
+			method:      http.MethodGet,
+			url:         "/value",
+			contentType: "application/json",
+			body:        `{"id":"Malloc","type":"gauge"}`,
+			want:        wantStruct{status: http.StatusNotFound, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Успешное добавление counter в пустое хранилище",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Counter","type":"counter","delta":12}`,
+			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Успешное получение значения counter",
+			storage:     stor,
+			method:      http.MethodGet,
+			url:         "/value",
+			contentType: "application/json",
+			body:        `{"id":"Counter","type":"counter"}`,
+			want:        wantStruct{status: http.StatusOK, response: `{"id":"Counter","type":"counter","delta":12}`, contentType: "application/json"}},
+		{name: "Успешное добавление counter в непустое хранилище",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			body:        `{"id":"Counter","type":"counter","delta":5}`,
+			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Успешное получение значения counter",
+			storage:     stor,
+			method:      http.MethodGet,
+			url:         "/value",
+			contentType: "application/json",
+			body:        `{"id":"Counter","type":"counter"}`,
+			want:        wantStruct{status: http.StatusOK, response: `{"id":"Counter","type":"counter","delta":17}`, contentType: "application/json"}},
+	}
+	for _, test := range tests {
+		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
+		resp := testRequest(t, ts, test.method, test.url, test.contentType, test.body)
+		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
+		assert.Equal(t, test.want.response, resp.Body, test.name)
+		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
+	}
+}
+
+func TestRouter_UpdateURL(t *testing.T) {
+
+	type wantStruct struct {
+		status      int
+		response    string
+		contentType string
+	}
+
+	stor := storage.NewMemStorage()
+	config := config.ServerConfig{Host: "localhost:8080"}
+
+	serverService := server.NewServerService(config, stor)
+
+	ts := httptest.NewServer(metricsRouter(serverService))
+	defer ts.Close()
+
+	tests := []struct {
+		name        string
+		storage     server.Storage
+		method      string
+		url         string
 		contentType string
 		want        wantStruct
 	}{
@@ -116,7 +319,7 @@ func TestRouter_Update(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test.method, test.url, test.contentType)
+		resp := testRequest(t, ts, test.method, test.url, test.contentType, "")
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
@@ -182,7 +385,7 @@ func TestRouter_GetList(t *testing.T) {
 
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test.method, test.url, test.contentType)
+		resp := testRequest(t, ts, test.method, test.url, test.contentType, "")
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 
 		assert.Contains(t, resp.Body, test.want.tdMetricsID)
@@ -192,7 +395,7 @@ func TestRouter_GetList(t *testing.T) {
 	}
 }
 
-func TestRouter_Get(t *testing.T) {
+func TestRouter_GetURL(t *testing.T) {
 
 	type wantStruct struct {
 		status      int
@@ -267,15 +470,15 @@ func TestRouter_Get(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test.method, test.url, test.contentType)
+		resp := testRequest(t, ts, test.method, test.url, test.contentType, "")
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
 	}
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, method, path string, contentType string) testRequestResponse {
-	req, err := http.NewRequest(method, ts.URL+path, strings.NewReader(""))
+func testRequest(t *testing.T, ts *httptest.Server, method, path string, contentType string, body string) testRequestResponse {
+	req, err := http.NewRequest(method, ts.URL+path, strings.NewReader(body))
 	req.Header.Set("Content-Type", contentType)
 	require.NoError(t, err)
 
