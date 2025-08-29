@@ -2,14 +2,15 @@ package agent
 
 import (
 	"fmt"
-	"log"
 	"math/rand/v2"
 	"net/http"
 	"runtime"
 	"time"
 
 	"github.com/galogen13/yandex-go-metrics/internal/config"
+	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
+	"go.uber.org/zap"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -41,6 +42,13 @@ func Start(config config.AgentConfig) {
 
 	agent := NewAgent(config)
 
+	logger.Log.Info("starting agent",
+		zap.String("Host", config.Host),
+		zap.String("APIFormat", config.APIFormat),
+		zap.Int("PollInterval", config.PollInterval),
+		zap.Any("ReportInterval", config.ReportInterval),
+	)
+
 	tickerPoll := time.NewTicker(time.Duration(config.PollInterval) * time.Second)
 	tickerReport := time.NewTicker(time.Duration(config.ReportInterval) * time.Second)
 	for {
@@ -64,148 +72,148 @@ func (agent *Agent) updateMetrics() {
 
 	err := agent.addNewGaugeMetric("Alloc", float64(rtm.Alloc))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("BuckHashSys", float64(rtm.BuckHashSys))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("Frees", float64(rtm.Frees))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("GCCPUFraction", float64(rtm.GCCPUFraction))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("GCSys", float64(rtm.GCSys))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("HeapAlloc", float64(rtm.HeapAlloc))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("HeapIdle", float64(rtm.HeapIdle))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("HeapInuse", float64(rtm.HeapInuse))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("HeapObjects", float64(rtm.HeapObjects))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("HeapReleased", float64(rtm.HeapReleased))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("HeapSys", float64(rtm.HeapSys))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("LastGC", float64(rtm.LastGC))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("Lookups", float64(rtm.Lookups))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("MCacheInuse", float64(rtm.MCacheInuse))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("MCacheSys", float64(rtm.MCacheSys))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("MSpanInuse", float64(rtm.MSpanInuse))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("MSpanSys", float64(rtm.MSpanSys))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("Mallocs", float64(rtm.Mallocs))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("NextGC", float64(rtm.NextGC))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("NumForcedGC", float64(rtm.NumForcedGC))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("NumGC", float64(rtm.NumGC))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("OtherSys", float64(rtm.OtherSys))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("PauseTotalNs", float64(rtm.PauseTotalNs))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("StackInuse", float64(rtm.StackInuse))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("StackSys", float64(rtm.StackSys))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("Sys", float64(rtm.Sys))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("TotalAlloc", float64(rtm.TotalAlloc))
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	err = agent.addNewGaugeMetric("RandomValue", rand.Float64())
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 	agent.increasePollСounter()
 	err = agent.addNewCounterMetric(pollCounterName, agent.PollCount)
 	if err != nil {
-		log.Printf("error updating agent metric values: %v", err)
+		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	}
 
 }
@@ -250,7 +258,7 @@ func (agent *Agent) sendMetrics() {
 			err = sendMetricsViaPathParams(client, agent.config.Host, metric)
 		}
 		if err != nil {
-			log.Println(err)
+			logger.Log.Error("error when send metric", zap.Error(err))
 			continue
 		}
 		if agent.metricIsPollCounter(metric.ID) {
@@ -280,7 +288,12 @@ func sendMetricsViaPathParams(client *resty.Client, host string, metric metrics.
 
 func sendMetricsWithJSONBody(client *resty.Client, host string, metric metrics.Metric) error {
 
-	log.Printf("prepairing to send metric ID: %s, MType: %s, value: %v", metric.ID, metric.MType, metric.GetValue())
+	//log.Printf("prepairing to send metric ID: %s, MType: %s, value: %v", metric.ID, metric.MType, metric.GetValue())
+	logger.Log.Info("prepairing to send metric",
+		zap.String("ID", metric.ID),
+		zap.String("MType", metric.MType),
+		zap.Any("value", metric.GetValue()),
+	)
 	url := fmt.Sprintf("http://%s/update", host)
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
