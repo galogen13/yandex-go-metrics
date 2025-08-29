@@ -18,7 +18,18 @@ func (storage *MemStorage) Update(metrics metrics.Metric) {
 	storage.Metrics[metrics.ID] = metrics
 }
 
-func (storage MemStorage) Get(ID string) (bool, metrics.Metric) {
+func (storage MemStorage) Get(incomingMetric metrics.Metric) (bool, metrics.Metric) {
+	metric, ok := storage.Metrics[incomingMetric.ID]
+	if !ok {
+		return false, metrics.Metric{}
+	}
+	if metric.MType != incomingMetric.MType {
+		return false, metrics.Metric{}
+	}
+	return ok, metric
+}
+
+func (storage MemStorage) GetByID(ID string) (bool, metrics.Metric) {
 	metrics, ok := storage.Metrics[ID]
 	return ok, metrics
 }
