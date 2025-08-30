@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 
+	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/go-chi/chi/v5"
@@ -29,8 +30,8 @@ func metricsRouter(server handler.Server) *chi.Mux {
 	r.Get("/", logger.RequestLogger(handler.GetListHandler(server)))
 	r.Post("/update/{mType}/{metrics}/{value}", logger.RequestLogger(handler.UpdateURLHandler(server)))
 	r.Get("/value/{mType}/{metrics}", logger.RequestLogger(handler.GetValueURLHandler(server)))
-	r.Post("/update", logger.RequestLogger(handler.UpdateHandler(server)))
-	r.Get("/value", logger.RequestLogger(handler.GetValueHandler(server)))
+	r.Post("/update", logger.RequestLogger(compression.GzipMiddleware(handler.UpdateHandler(server))))
+	r.Get("/value", logger.RequestLogger(compression.GzipMiddleware(handler.GetValueHandler(server))))
 
 	return r
 }

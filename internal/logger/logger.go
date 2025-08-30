@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -47,8 +48,6 @@ func RequestLogger(next http.HandlerFunc) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		start := time.Now()
-
 		responseData := &responseData{
 			status: 0,
 			size:   0,
@@ -60,20 +59,39 @@ func RequestLogger(next http.HandlerFunc) http.HandlerFunc {
 
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
-			Log.Info("error read request body",
-				zap.Error(err))
+			Log.Info("error read request body", zap.Error(err))
 		}
 
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+		start := time.Now()
 
 		next(&lw, r)
 
 		duration := time.Since(start)
 
+		var requestBody string
+		if len(bodyBytes) > 0 {
+			cr, err := compression.NewCompressReader(io.NopCloser(bytes.NewReader(bodyBytes)))
+			if err != nil {
+				Log.Error("error creating compress reader", zap.Error(err))
+				requestBody = string(bodyBytes)
+			} else {
+				defer cr.Close()
+				decompressedBytes, err := io.ReadAll(cr)
+				if err != nil {
+					Log.Error("error reading compressed body", zap.Error(err))
+					requestBody = string(bodyBytes)
+				} else {
+					requestBody = string(decompressedBytes)
+				}
+			}
+		}
+
 		Log.Info("incoming request",
 			zap.String("uri", r.RequestURI),
 			zap.String("method", r.Method),
-			zap.Any("body", string(bodyBytes)),
+			zap.Any("body", requestBody),
 			zap.String("duration", duration.String()),
 			zap.Int("status", responseData.status),
 			zap.Int("size", responseData.size),

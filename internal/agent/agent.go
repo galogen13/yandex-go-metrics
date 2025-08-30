@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -294,10 +297,30 @@ func sendMetricsWithJSONBody(client *resty.Client, host string, metric metrics.M
 		zap.String("MType", metric.MType),
 		zap.Any("value", metric.GetValue()),
 	)
+
+	bodyBytes, err := json.Marshal(metric)
+	if err != nil {
+		return fmt.Errorf("error while marshalling metric with ID %s: %w", metric.ID, err)
+	}
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+
+	_, err = gz.Write(bodyBytes)
+	if err != nil {
+		return fmt.Errorf("error while compressing metric with ID %s: %w", metric.ID, err)
+	}
+
+	err = gz.Close()
+	if err != nil {
+		return fmt.Errorf("error while close compressing metric with ID %s: %w", metric.ID, err)
+	}
+
 	url := fmt.Sprintf("http://%s/update", host)
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
-		SetBody(metric).
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(buf.Bytes()).
 		Post(url)
 	if err != nil {
 		return fmt.Errorf("error sending POST request with JSON body to url %s: %w", url, err)
