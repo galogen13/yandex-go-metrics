@@ -18,7 +18,10 @@ func main() {
 
 func run() error {
 
-	config := config.GetServerConfig()
+	config, err := config.GetServerConfig()
+	if err != nil {
+		return err
+	}
 
 	if err := logger.Initialize(config.LogLevel); err != nil {
 		return err
