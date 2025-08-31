@@ -23,14 +23,14 @@ func Start(serverService handler.Server) error {
 func metricsRouter(server handler.Server) *chi.Mux {
 	r := chi.NewRouter()
 
-	r.NotFound(notFoundHandler())
-	r.MethodNotAllowed(methodNotAllowedHandler())
+	r.NotFound(logger.RequestLogger(notFoundHandler()))
+	r.MethodNotAllowed(logger.RequestLogger(methodNotAllowedHandler()))
 
 	r.Get("/", logger.RequestLogger(handler.GetListHandler(server)))
 	r.Post("/update/{mType}/{metrics}/{value}", logger.RequestLogger(handler.UpdateURLHandler(server)))
 	r.Get("/value/{mType}/{metrics}", logger.RequestLogger(handler.GetValueURLHandler(server)))
 	r.Post("/update", logger.RequestLogger(handler.UpdateHandler(server)))
-	r.Get("/value", logger.RequestLogger(handler.GetValueHandler(server)))
+	r.Post("/value", logger.RequestLogger(handler.GetValueHandler(server)))
 
 	return r
 }
