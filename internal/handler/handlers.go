@@ -93,6 +93,12 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+		_, err = http.NoBody.WriteTo(w)
+		if err != nil {
+			logger.Log.Error("Error writing body", zap.Error(err))
+			w.WriteHeader(resolveHTTPStatus(err))
+			return
+		}
 	}
 }
 
