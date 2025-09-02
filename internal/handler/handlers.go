@@ -37,6 +37,7 @@ func GetListHandler(serverService Server) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write(buf.Bytes())
 
@@ -93,6 +94,12 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+		_, err = http.NoBody.WriteTo(w)
+		if err != nil {
+			logger.Log.Error("Error writing body", zap.Error(err))
+			w.WriteHeader(resolveHTTPStatus(err))
+			return
+		}
 	}
 }
 

@@ -1,14 +1,20 @@
 package router
 
 import (
+	"bytes"
+	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
+	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	storage "github.com/galogen13/yandex-go-metrics/internal/repository"
+	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 	"github.com/galogen13/yandex-go-metrics/internal/service/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,13 +29,26 @@ type testRequestResponse struct {
 	Body, ContentType string
 }
 
-func TestRouter_Update(t *testing.T) {
+type testCase struct {
+	name        string
+	storage     server.Storage
+	method      string
+	url         string
+	contentType string
+	body        string
+	compressReq bool
+	want        wantStruct
+}
 
-	type wantStruct struct {
-		status      int
-		response    string
-		contentType string
-	}
+type wantStruct struct {
+	status         int
+	response       string
+	contentType    string
+	tdMetricsID    string
+	tdMetricsValue string
+}
+
+func TestRouter_Update(t *testing.T) {
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
@@ -39,15 +58,7 @@ func TestRouter_Update(t *testing.T) {
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
 
-	tests := []struct {
-		name        string
-		storage     server.Storage
-		method      string
-		url         string
-		body        string
-		contentType string
-		want        wantStruct
-	}{
+	tests := []testCase{
 		{name: "Успешное добавление gauge в пустое хранилище",
 			storage:     stor,
 			method:      http.MethodPost,
@@ -128,7 +139,7 @@ func TestRouter_Update(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test.method, test.url, test.contentType, test.body)
+		resp := testRequest(t, ts, test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
@@ -136,12 +147,6 @@ func TestRouter_Update(t *testing.T) {
 }
 
 func TestRouter_Get(t *testing.T) {
-
-	type wantStruct struct {
-		status      int
-		response    string
-		contentType string
-	}
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
@@ -151,15 +156,7 @@ func TestRouter_Get(t *testing.T) {
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
 
-	tests := []struct {
-		name        string
-		storage     server.Storage
-		method      string
-		url         string
-		contentType string
-		body        string
-		want        wantStruct
-	}{
+	tests := []testCase{
 		{name: "Успешное добавление gauge в пустое хранилище",
 			storage:     stor,
 			method:      http.MethodPost,
@@ -169,21 +166,21 @@ func TestRouter_Get(t *testing.T) {
 			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
 		{name: "Успешное получение значения gauge",
 			storage:     stor,
-			method:      http.MethodGet,
+			method:      http.MethodPost,
 			url:         "/value",
 			contentType: "application/json",
 			body:        `{"id":"Alloc","type":"gauge"}`,
 			want:        wantStruct{status: http.StatusOK, response: `{"id":"Alloc","type":"gauge","value":20.99}`, contentType: "application/json"}},
 		{name: "Некорректный тип метрики",
 			storage:     stor,
-			method:      http.MethodGet,
+			method:      http.MethodPost,
 			url:         "/value",
 			contentType: "application/json",
 			body:        `{"id":"Alloc","type":"counter"}`,
 			want:        wantStruct{status: http.StatusNotFound, response: "", contentType: respContentTypeTextPlain}},
 		{name: "Несуществующая метрика",
 			storage:     stor,
-			method:      http.MethodGet,
+			method:      http.MethodPost,
 			url:         "/value",
 			contentType: "application/json",
 			body:        `{"id":"Malloc","type":"gauge"}`,
@@ -197,7 +194,7 @@ func TestRouter_Get(t *testing.T) {
 			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
 		{name: "Успешное получение значения counter",
 			storage:     stor,
-			method:      http.MethodGet,
+			method:      http.MethodPost,
 			url:         "/value",
 			contentType: "application/json",
 			body:        `{"id":"Counter","type":"counter"}`,
@@ -211,7 +208,7 @@ func TestRouter_Get(t *testing.T) {
 			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
 		{name: "Успешное получение значения counter",
 			storage:     stor,
-			method:      http.MethodGet,
+			method:      http.MethodPost,
 			url:         "/value",
 			contentType: "application/json",
 			body:        `{"id":"Counter","type":"counter"}`,
@@ -219,20 +216,14 @@ func TestRouter_Get(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test.method, test.url, test.contentType, test.body)
+		resp := testRequest(t, ts, test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
 	}
 }
 
-func TestRouter_UpdateURL(t *testing.T) {
-
-	type wantStruct struct {
-		status      int
-		response    string
-		contentType string
-	}
+func TestRouter_Compression(t *testing.T) {
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
@@ -242,14 +233,60 @@ func TestRouter_UpdateURL(t *testing.T) {
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
 
-	tests := []struct {
-		name        string
-		storage     server.Storage
-		method      string
-		url         string
-		contentType string
-		want        wantStruct
-	}{
+	tests := []testCase{
+		{name: "Успешное добавление gauge в пустое хранилище",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			compressReq: true,
+			body:        `{"id":"Alloc","type":"gauge","value":20.99}`,
+			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Успешное получение значения gauge",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/value",
+			contentType: "application/json",
+			compressReq: true,
+			body:        `{"id":"Alloc","type":"gauge"}`,
+			want:        wantStruct{status: http.StatusOK, response: `{"id":"Alloc","type":"gauge","value":20.99}`, contentType: "application/json"}},
+		{name: "Успешное добавление counter в непустое хранилище",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/update",
+			contentType: "application/json",
+			compressReq: true,
+			body:        `{"id":"Counter","type":"counter","delta":5}`,
+			want:        wantStruct{status: http.StatusOK, response: "", contentType: respContentTypeTextPlain}},
+		{name: "Успешное получение значения counter",
+			storage:     stor,
+			method:      http.MethodPost,
+			url:         "/value",
+			contentType: "application/json",
+			compressReq: true,
+			body:        `{"id":"Counter","type":"counter"}`,
+			want:        wantStruct{status: http.StatusOK, response: `{"id":"Counter","type":"counter","delta":5}`, contentType: "application/json"}},
+	}
+	for _, test := range tests {
+		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
+		resp := testRequest(t, ts, test)
+		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
+		assert.Equal(t, test.want.response, resp.Body, test.name)
+		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
+	}
+}
+
+func TestRouter_UpdateURL(t *testing.T) {
+
+	stor := storage.NewMemStorage()
+	config := config.ServerConfig{Host: "localhost:8080"}
+
+	serverService := server.NewServerService(config, stor)
+
+	ts := httptest.NewServer(metricsRouter(serverService))
+	defer ts.Close()
+
+	tests := []testCase{
 		{name: "Успешное добавление gauge в пустое хранилище",
 			storage:     stor,
 			method:      http.MethodPost,
@@ -319,7 +356,7 @@ func TestRouter_UpdateURL(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test.method, test.url, test.contentType, "")
+		resp := testRequest(t, ts, test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
@@ -327,13 +364,6 @@ func TestRouter_UpdateURL(t *testing.T) {
 }
 
 func TestRouter_GetList(t *testing.T) {
-
-	type wantStruct struct {
-		status         int
-		tdMetricsID    string
-		tdMetricsValue string
-		contentType    string
-	}
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
@@ -343,14 +373,7 @@ func TestRouter_GetList(t *testing.T) {
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
 
-	tests := []struct {
-		name        string
-		storage     server.Storage
-		method      string
-		url         string
-		contentType string
-		want        wantStruct
-	}{
+	tests := []testCase{
 		{name: "Получение страницы с пустым хранилищем",
 			storage:     stor,
 			method:      http.MethodGet,
@@ -385,7 +408,7 @@ func TestRouter_GetList(t *testing.T) {
 
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test.method, test.url, test.contentType, "")
+		resp := testRequest(t, ts, test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 
 		assert.Contains(t, resp.Body, test.want.tdMetricsID)
@@ -397,12 +420,6 @@ func TestRouter_GetList(t *testing.T) {
 
 func TestRouter_GetURL(t *testing.T) {
 
-	type wantStruct struct {
-		status      int
-		response    string
-		contentType string
-	}
-
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
@@ -411,14 +428,7 @@ func TestRouter_GetURL(t *testing.T) {
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
 
-	tests := []struct {
-		name        string
-		storage     server.Storage
-		method      string
-		url         string
-		contentType string
-		want        wantStruct
-	}{
+	tests := []testCase{
 		{name: "Успешное добавление gauge в пустое хранилище",
 			storage:     stor,
 			method:      http.MethodPost,
@@ -470,16 +480,30 @@ func TestRouter_GetURL(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test.method, test.url, test.contentType, "")
+		resp := testRequest(t, ts, test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
 	}
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, method, path string, contentType string, body string) testRequestResponse {
-	req, err := http.NewRequest(method, ts.URL+path, strings.NewReader(body))
-	req.Header.Set("Content-Type", contentType)
+func testRequest(t *testing.T, ts *httptest.Server, tc testCase) testRequestResponse {
+
+	var body io.Reader
+	var err error
+
+	if tc.compressReq {
+		compressedBody, err := compressBody(tc.body)
+		require.NoError(t, err)
+		body = compressedBody
+	} else {
+		body = strings.NewReader(tc.body)
+	}
+	req, err := http.NewRequest(tc.method, ts.URL+tc.url, body)
+	req.Header.Set("Content-Type", tc.contentType)
+	if tc.compressReq {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
 	require.NoError(t, err)
 
 	resp, err := ts.Client().Do(req)
@@ -496,4 +520,88 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, content
 	}
 
 	return result
+}
+
+func compressBody(data string) (io.Reader, error) {
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+
+	if _, err := zw.Write([]byte(data)); err != nil {
+		return nil, err
+	}
+
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+
+	return &buf, nil
+}
+
+func TestGzipCompression(t *testing.T) {
+
+	id := "Alloc"
+	mType := "gauge"
+	value := 20.99
+	stor := storage.NewMemStorage()
+	metric := metrics.NewMetrics(id, mType)
+	err := metric.UpdateValue(value)
+	require.NoError(t, err)
+	stor.Update(metric)
+	config := config.ServerConfig{}
+
+	serverService := server.NewServerService(config, stor)
+
+	handler := http.HandlerFunc(compression.GzipMiddleware(handler.GetValueHandler(serverService)))
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	requestBody := fmt.Sprintf(`{"id":"%s","type":"%s"}`, id, mType)
+
+	successBody := fmt.Sprintf(`{"id":"%s","type":"%s","value":%.2f}`, id, mType, value)
+
+	t.Run("sends_gzip", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		zb := gzip.NewWriter(buf)
+		_, err := zb.Write([]byte(requestBody))
+		require.NoError(t, err)
+		err = zb.Close()
+		require.NoError(t, err)
+
+		r := httptest.NewRequest("POST", srv.URL, buf)
+		r.RequestURI = ""
+		r.Header.Set("Content-Encoding", "gzip")
+		r.Header.Set("Accept-Encoding", "")
+
+		resp, err := http.DefaultClient.Do(r)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		defer resp.Body.Close()
+
+		b, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.JSONEq(t, successBody, string(b))
+	})
+
+	t.Run("accepts_gzip", func(t *testing.T) {
+		buf := bytes.NewBufferString(requestBody)
+		r := httptest.NewRequest("POST", srv.URL, buf)
+		r.RequestURI = ""
+		r.Header.Set("Accept-Encoding", "gzip")
+
+		resp, err := http.DefaultClient.Do(r)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		defer resp.Body.Close()
+
+		zr, err := gzip.NewReader(resp.Body)
+		require.NoError(t, err)
+
+		b, err := io.ReadAll(zr)
+		require.NoError(t, err)
+
+		require.JSONEq(t, successBody, string(b))
+	})
 }
