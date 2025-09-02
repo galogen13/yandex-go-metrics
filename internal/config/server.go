@@ -2,8 +2,6 @@ package config
 
 import (
 	"flag"
-	"fmt"
-	"os"
 
 	"github.com/caarlos0/env/v6"
 )
@@ -13,7 +11,8 @@ type ServerConfig struct {
 	LogLevel        string `env:"LOG_LEVEL"`
 	StoreInterval   *int   `env:"STORE_INTERVAL"` // указатель, т.к. в переменной может быть 0, что важно для нас
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
-	Restore         *bool  `env:"RESTORE"`
+	RestoreStorage  *bool  `env:"RESTORE"`
+	StoreOnUpdate   bool
 }
 
 func GetServerConfig() (ServerConfig, error) {
@@ -25,13 +24,11 @@ func GetServerConfig() (ServerConfig, error) {
 		return ServerConfig{}, err
 	}
 
-	fmt.Println(os.Environ())
-
 	hostAddressFlag := flag.String("a", "localhost:8080", "host address")
 	logLevelFlag := flag.String("l", "info", "log level")
-	StoreIntervalFlag := flag.Int("i", 300, "store interval")
-	FileStoragePathFlag := flag.String("l", "./", "file storage path")
-	RestoreFlag := flag.Bool("l", false, "restore")
+	StoreIntervalFlag := flag.Int("i", 300, "store to file interval")
+	FileStoragePathFlag := flag.String("f", "./metricsstorage", "file storage path")
+	RestoreFlag := flag.Bool("r", false, "restore storage from file")
 	flag.Parse()
 
 	if cfg.Host == "" {
@@ -50,9 +47,11 @@ func GetServerConfig() (ServerConfig, error) {
 		cfg.FileStoragePath = *FileStoragePathFlag
 	}
 
-	if cfg.Restore == nil {
-		cfg.Restore = RestoreFlag
+	if cfg.RestoreStorage == nil {
+		cfg.RestoreStorage = RestoreFlag
 	}
+
+	cfg.StoreOnUpdate = (*cfg.StoreInterval == 0)
 
 	return cfg, nil
 }

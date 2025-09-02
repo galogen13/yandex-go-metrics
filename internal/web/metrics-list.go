@@ -8,8 +8,6 @@ import (
 )
 
 var (
-	//templatePath = "internal/web/templates/list.tmpl"
-
 	//go:embed templates/*.tmpl
 	templateFS embed.FS
 )
