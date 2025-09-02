@@ -2,24 +2,25 @@ package web
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
 	"html/template"
 )
 
 var (
-	templatePath = "internal/web/templates/list.tmpl"
+	//templatePath = "internal/web/templates/list.tmpl"
+
+	//go:embed templates/*.tmpl
+	templateFS embed.FS
 )
 
 func MetricsListPage(metricsValues map[string]any) (bytes.Buffer, error) {
 
 	var buf bytes.Buffer
 
-	tmpl, err := template.ParseFiles(templatePath)
-	if err != nil {
-		return buf, fmt.Errorf("error parsing page template: %w", err)
-	}
+	tmpl := template.Must(template.ParseFS(templateFS, "templates/list.tmpl"))
 
-	err = tmpl.Execute(&buf, metricsValues)
+	err := tmpl.Execute(&buf, metricsValues)
 	if err != nil {
 		return buf, fmt.Errorf("error filling page template: %w", err)
 	}
