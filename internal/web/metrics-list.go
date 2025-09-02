@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	templatePath = "../../internal/web/templates/list.tmpl"
+	templatePath = "internal/web/templates/list.tmpl"
 )
 
 func MetricsListPage(metricsValues map[string]any) (bytes.Buffer, error) {
