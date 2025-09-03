@@ -56,13 +56,13 @@ func (serverService *ServerService) Start() error {
 	return http.ListenAndServe(serverService.Config.Host, r)
 }
 
-func (server *ServerService) UpdateMetric(incomingMetric metrics.Metric) error {
+func (serverService *ServerService) UpdateMetric(incomingMetric metrics.Metric) error {
 
 	if err := incomingMetric.Check(true); err != nil {
 		return errUpdatingMetrics(err)
 	}
 
-	ok, metric := server.Storage.GetByID(incomingMetric.ID)
+	ok, metric := serverService.Storage.GetByID(incomingMetric.ID)
 	if ok {
 		err := metric.CompareTypes(incomingMetric.MType)
 		if err != nil {
@@ -73,10 +73,10 @@ func (server *ServerService) UpdateMetric(incomingMetric metrics.Metric) error {
 		metric = incomingMetric
 	}
 
-	server.Storage.Update(metric)
+	serverService.Storage.Update(metric)
 
-	if server.Config.StoreOnUpdate {
-		err := server.Storage.SaveToFile(server.Config.FileStoragePath)
+	if serverService.Config.StoreOnUpdate {
+		err := serverService.Storage.SaveToFile(serverService.Config.FileStoragePath)
 		if err != nil {
 			logger.Log.Info("cant save metrics to file on update", zap.Error(err))
 		}
@@ -86,13 +86,13 @@ func (server *ServerService) UpdateMetric(incomingMetric metrics.Metric) error {
 
 }
 
-func (server ServerService) GetMetric(incomingMetric metrics.Metric) (metrics.Metric, error) {
+func (serverService ServerService) GetMetric(incomingMetric metrics.Metric) (metrics.Metric, error) {
 
 	if err := incomingMetric.Check(false); err != nil {
 		return metrics.Metric{}, errGettingMetrics(err)
 	}
 
-	ok, metric := server.Storage.Get(incomingMetric)
+	ok, metric := serverService.Storage.Get(incomingMetric)
 	if !ok {
 		return metrics.Metric{}, fmt.Errorf("%w: ID: %s, mType: %s", metrics.ErrMetricNotFound, incomingMetric.ID, incomingMetric.MType)
 	}
@@ -100,26 +100,26 @@ func (server ServerService) GetMetric(incomingMetric metrics.Metric) (metrics.Me
 	return metric, nil
 }
 
-func (server ServerService) GetAllMetricsValues() map[string]any {
+func (serverService ServerService) GetAllMetricsValues() map[string]any {
 
-	allMetrics := server.Storage.GetAll()
+	allMetrics := serverService.Storage.GetAll()
 	metricsValues := metrics.GetMetricsValues(allMetrics)
 	return metricsValues
 
 }
 
-func (server *ServerService) startPeriodicSave(stopChan <-chan struct{}) {
-	if *server.Config.StoreInterval == 0 {
+func (serverService *ServerService) startPeriodicSave(stopChan <-chan struct{}) {
+	if *serverService.Config.StoreInterval == 0 {
 		return
 	}
 
-	ticker := time.NewTicker(time.Second * time.Duration(*server.Config.StoreInterval))
+	ticker := time.NewTicker(time.Second * time.Duration(*serverService.Config.StoreInterval))
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			if err := server.Storage.SaveToFile(server.Config.FileStoragePath); err != nil {
+			if err := serverService.Storage.SaveToFile(serverService.Config.FileStoragePath); err != nil {
 				logger.Log.Info("cant save metrics to file periodicaly", zap.Error(err))
 			}
 		case <-stopChan:
