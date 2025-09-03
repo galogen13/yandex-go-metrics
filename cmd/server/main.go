@@ -6,7 +6,6 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	storage "github.com/galogen13/yandex-go-metrics/internal/repository"
-	"github.com/galogen13/yandex-go-metrics/internal/router"
 	"github.com/galogen13/yandex-go-metrics/internal/service/server"
 )
 
@@ -31,7 +30,7 @@ func run() error {
 	storage := storage.NewMemStorage()
 	serverService := server.NewServerService(config, storage)
 
-	if err := router.Start(serverService); err != nil {
+	if err := serverService.Start(); err != nil {
 		return err
 	}
 

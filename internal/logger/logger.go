@@ -1,8 +1,6 @@
 package logger
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 	"time"
 
@@ -17,7 +15,7 @@ func Initialize(level string) error {
 	if err != nil {
 		return err
 	}
-	cfg := zap.NewProductionConfig()
+	cfg := zap.NewDevelopmentConfig()
 	cfg.Level = lvl
 	cfg.EncoderConfig.TimeKey = "time"
 	cfg.EncoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
@@ -56,13 +54,6 @@ func RequestLogger(next http.HandlerFunc) http.HandlerFunc {
 			responseData:   responseData,
 		}
 
-		bodyBytes, err := io.ReadAll(r.Body)
-		if err != nil {
-			Log.Info("error read request body", zap.Error(err))
-		}
-
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
 		start := time.Now()
 
 		next(&lw, r)
@@ -72,7 +63,6 @@ func RequestLogger(next http.HandlerFunc) http.HandlerFunc {
 		Log.Info("incoming request",
 			zap.String("uri", r.RequestURI),
 			zap.String("method", r.Method),
-			zap.Any("body", string(bodyBytes)),
 			zap.String("duration", duration.String()),
 			zap.Int("status", responseData.status),
 			zap.Int("size", responseData.size),

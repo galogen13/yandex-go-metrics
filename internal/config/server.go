@@ -26,7 +26,7 @@ func GetServerConfig() (ServerConfig, error) {
 
 	hostAddressFlag := flag.String("a", "localhost:8080", "host address")
 	logLevelFlag := flag.String("l", "info", "log level")
-	StoreIntervalFlag := flag.Int("i", 300, "store to file interval")
+	StoreIntervalFlag := flag.Int("i", 300, "store to file interval, seconds")
 	FileStoragePathFlag := flag.String("f", "./metricsstorage", "file storage path")
 	RestoreFlag := flag.Bool("r", false, "restore storage from file")
 	flag.Parse()

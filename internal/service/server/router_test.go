@@ -1,4 +1,4 @@
-package router
+package server
 
 import (
 	"bytes"
@@ -15,7 +15,6 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	storage "github.com/galogen13/yandex-go-metrics/internal/repository"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
-	"github.com/galogen13/yandex-go-metrics/internal/service/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +30,7 @@ type testRequestResponse struct {
 
 type testCase struct {
 	name        string
-	storage     server.Storage
+	storage     Storage
 	method      string
 	url         string
 	contentType string
@@ -53,7 +52,7 @@ func TestRouter_Update(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := server.NewServerService(config, stor)
+	serverService := NewServerService(config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -151,7 +150,7 @@ func TestRouter_Get(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := server.NewServerService(config, stor)
+	serverService := NewServerService(config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -228,7 +227,7 @@ func TestRouter_Compression(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := server.NewServerService(config, stor)
+	serverService := NewServerService(config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -281,7 +280,7 @@ func TestRouter_UpdateURL(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := server.NewServerService(config, stor)
+	serverService := NewServerService(config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -368,7 +367,7 @@ func TestRouter_GetList(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := server.NewServerService(config, stor)
+	serverService := NewServerService(config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -423,7 +422,7 @@ func TestRouter_GetURL(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := server.NewServerService(config, stor)
+	serverService := NewServerService(config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -549,7 +548,7 @@ func TestGzipCompression(t *testing.T) {
 	stor.Update(metric)
 	config := config.ServerConfig{}
 
-	serverService := server.NewServerService(config, stor)
+	serverService := NewServerService(config, stor)
 
 	handler := http.HandlerFunc(compression.GzipMiddleware(handler.GetValueHandler(serverService)))
 

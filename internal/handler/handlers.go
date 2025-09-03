@@ -23,7 +23,6 @@ type Server interface {
 	UpdateMetric(metric metrics.Metric) error
 	GetMetric(metric metrics.Metric) (metrics.Metric, error)
 	GetAllMetricsValues() map[string]any
-	Host() string
 }
 
 func GetListHandler(serverService Server) http.HandlerFunc {
