@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 )
 
 const (
@@ -74,6 +75,16 @@ func (metric Metric) GetValue() any {
 		return *metric.Delta
 	}
 	return nil
+}
+
+func (metric Metric) GetValueString() string {
+	switch metric.MType {
+	case Gauge:
+		return strconv.FormatFloat(*metric.Value, 'f', -1, 64)
+	case Counter:
+		return strconv.FormatInt(*metric.Delta, 10)
+	}
+	return ""
 }
 
 func GetMetricsValues(metricsList []Metric) map[string]any {

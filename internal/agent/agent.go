@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
+	"path"
 	"runtime"
 	"time"
 
@@ -273,16 +275,23 @@ func (agent *Agent) sendMetrics() {
 
 func sendMetricsViaPathParams(client *resty.Client, host string, metric metrics.Metric) error {
 
-	url := fmt.Sprintf("http://%s/update/%s/%s/%v", host, metric.MType, metric.ID, metric.GetValue())
+	baseURL := &url.URL{
+		Scheme: "http",
+		Host:   host,
+		Path:   path.Join("update", metric.MType, metric.ID, metric.GetValueString()),
+	}
+	fullURL := baseURL.String()
+
 	resp, err := client.R().
 		SetHeader("Content-Type", contentTypeTextPlain).
-		Post(url)
+		Post(fullURL)
+
 	if err != nil {
-		return fmt.Errorf("error sending POST request via path params to url %s: %w", url, err)
+		return fmt.Errorf("error sending POST request via path params to url %s: %w", fullURL, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("unexpected code while executing request via path params to url %s: %d", url, resp.StatusCode())
+		return fmt.Errorf("unexpected code while executing request via path params to url %s: %d", fullURL, resp.StatusCode())
 	}
 
 	return nil
@@ -291,7 +300,6 @@ func sendMetricsViaPathParams(client *resty.Client, host string, metric metrics.
 
 func sendMetricsWithJSONBody(client *resty.Client, host string, metric metrics.Metric) error {
 
-	//log.Printf("prepairing to send metric ID: %s, MType: %s, value: %v", metric.ID, metric.MType, metric.GetValue())
 	logger.Log.Info("prepairing to send metric",
 		zap.String("ID", metric.ID),
 		zap.String("MType", metric.MType),
@@ -316,18 +324,24 @@ func sendMetricsWithJSONBody(client *resty.Client, host string, metric metrics.M
 		return fmt.Errorf("error while close compressing metric with ID %s: %w", metric.ID, err)
 	}
 
-	url := fmt.Sprintf("http://%s/update", host)
+	baseURL := &url.URL{
+		Scheme: "http",
+		Host:   host,
+		Path:   "update",
+	}
+	fullURL := baseURL.String()
+
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetBody(buf.Bytes()).
-		Post(url)
+		Post(fullURL)
 	if err != nil {
-		return fmt.Errorf("error sending POST request with JSON body to url %s: %w", url, err)
+		return fmt.Errorf("error sending POST request with JSON body to url %s: %w", fullURL, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("unexpected code while executing request with JSON body to url %s: %d", url, resp.StatusCode())
+		return fmt.Errorf("unexpected code while executing request with JSON body to url %s: %d", fullURL, resp.StatusCode())
 	}
 
 	return nil

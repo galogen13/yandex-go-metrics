@@ -98,6 +98,12 @@ func (storage *MemStorage) SaveToFile(fileStoragePath string) error {
 		return fmt.Errorf("fileStoragePath is not filled")
 	}
 
+	metrics := storage.GetAll()
+	if len(metrics) == 0 {
+		logger.Log.Info("no metrics to save in file storage")
+		return nil
+	}
+
 	file, err := os.Create(fileStoragePath)
 	if err != nil {
 		return fmt.Errorf("error while create store file: %w", err)
@@ -105,7 +111,6 @@ func (storage *MemStorage) SaveToFile(fileStoragePath string) error {
 	defer file.Close()
 
 	encoder := json.NewEncoder(file)
-	metrics := storage.GetAll()
 
 	if err = encoder.Encode(metrics); err != nil {
 		return fmt.Errorf("error while encode metrics to file: %w", err)

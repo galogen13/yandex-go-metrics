@@ -13,10 +13,10 @@ const (
 )
 
 type AgentConfig struct {
-	Host           string `env:"ADDRESS"`
-	ReportInterval int    `env:"REPORT_INTERVAL"`
-	PollInterval   int    `env:"POLL_INTERVAL"`
-	APIFormat      string `env:"API_FORMAT"`
+	Host           string `env:"ADDRESS"`         // адрес сервера, на который будут отправляться метрики
+	ReportInterval int    `env:"REPORT_INTERVAL"` // количество секунд между отправками метрик на сервер
+	PollInterval   int    `env:"POLL_INTERVAL"`   // количество секунд между сборами значений метрик
+	APIFormat      string `env:"API_FORMAT"`      // для поддержки старого варианта передачи значений метрик внутри URL установить значение "url", иначе - "json".
 }
 
 func GetAgentConfig() (AgentConfig, error) {
