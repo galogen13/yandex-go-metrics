@@ -12,10 +12,10 @@ import (
 )
 
 type Storage interface {
-	Update(metric metrics.Metric)
-	Get(metrics.Metric) (bool, metrics.Metric)
-	GetByID(ID string) (bool, metrics.Metric)
-	GetAll() []metrics.Metric
+	Update(metric *metrics.Metric)
+	Get(*metrics.Metric) (bool, *metrics.Metric)
+	GetByID(ID string) (bool, *metrics.Metric)
+	GetAll() []*metrics.Metric
 	RestoreFromFile(fileStoragePath string) error
 	SaveToFile(fileStoragePath string) error
 }
@@ -56,7 +56,7 @@ func (serverService *ServerService) Start() error {
 	return http.ListenAndServe(serverService.Config.Host, r)
 }
 
-func (serverService *ServerService) UpdateMetric(incomingMetric metrics.Metric) error {
+func (serverService *ServerService) UpdateMetric(incomingMetric *metrics.Metric) error {
 
 	if err := incomingMetric.Check(true); err != nil {
 		return errUpdatingMetrics(err)
@@ -86,15 +86,15 @@ func (serverService *ServerService) UpdateMetric(incomingMetric metrics.Metric) 
 
 }
 
-func (serverService ServerService) GetMetric(incomingMetric metrics.Metric) (metrics.Metric, error) {
+func (serverService ServerService) GetMetric(incomingMetric *metrics.Metric) (*metrics.Metric, error) {
 
 	if err := incomingMetric.Check(false); err != nil {
-		return metrics.Metric{}, errGettingMetrics(err)
+		return nil, errGettingMetrics(err)
 	}
 
 	ok, metric := serverService.Storage.Get(incomingMetric)
 	if !ok {
-		return metrics.Metric{}, fmt.Errorf("%w: ID: %s, mType: %s", metrics.ErrMetricNotFound, incomingMetric.ID, incomingMetric.MType)
+		return nil, fmt.Errorf("%w: ID: %s, mType: %s", metrics.ErrMetricNotFound, incomingMetric.ID, incomingMetric.MType)
 	}
 
 	return metric, nil

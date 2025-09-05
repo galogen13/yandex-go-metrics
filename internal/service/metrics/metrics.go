@@ -30,12 +30,12 @@ type Metric struct {
 	Hash  string   `json:"-"` //`json:"hash,omitempty"`
 }
 
-func NewMetrics(ID string, MType string) Metric {
+func NewMetrics(ID string, MType string) *Metric {
 	metric := Metric{}
 	metric.ID = ID
 	metric.MType = MType
 
-	return metric
+	return &metric
 }
 
 func (metric *Metric) UpdateValue(Value any) error {
@@ -87,7 +87,7 @@ func (metric Metric) GetValueString() string {
 	return ""
 }
 
-func GetMetricsValues(metricsList []Metric) map[string]any {
+func GetMetricsValues(metricsList []*Metric) map[string]any {
 
 	result := make(map[string]any)
 

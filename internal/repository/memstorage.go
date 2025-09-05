@@ -13,50 +13,49 @@ import (
 
 type MemStorage struct {
 	mu      sync.RWMutex
-	Metrics map[string]metrics.Metric
+	Metrics map[string]*metrics.Metric
 }
 
 func NewMemStorage() *MemStorage {
-	newStorage := MemStorage{}
-	newStorage.Metrics = map[string]metrics.Metric{}
+	newStorage := MemStorage{Metrics: map[string]*metrics.Metric{}}
 	return &newStorage
 }
 
-func (storage *MemStorage) Update(metrics metrics.Metric) {
+func (storage *MemStorage) Update(metrics *metrics.Metric) {
 
 	storage.mu.Lock()
 	defer storage.mu.Unlock()
 	storage.Metrics[metrics.ID] = metrics
 }
 
-func (storage *MemStorage) Get(incomingMetric metrics.Metric) (bool, metrics.Metric) {
+func (storage *MemStorage) Get(incomingMetric *metrics.Metric) (bool, *metrics.Metric) {
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 	metric, ok := storage.Metrics[incomingMetric.ID]
 	if !ok {
-		return false, metrics.Metric{}
+		return false, nil
 	}
 	if metric.MType != incomingMetric.MType {
-		return false, metrics.Metric{}
+		return false, nil
 	}
 	return ok, metric
 }
 
-func (storage *MemStorage) GetByID(ID string) (bool, metrics.Metric) {
+func (storage *MemStorage) GetByID(ID string) (bool, *metrics.Metric) {
 
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 
-	metrics, ok := storage.Metrics[ID]
-	return ok, metrics
+	metric, ok := storage.Metrics[ID]
+	return ok, metric
 }
 
-func (storage *MemStorage) GetAll() []metrics.Metric {
+func (storage *MemStorage) GetAll() []*metrics.Metric {
 
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 
-	list := make([]metrics.Metric, 0, len(storage.Metrics))
+	list := make([]*metrics.Metric, 0, len(storage.Metrics))
 	for _, metrics := range storage.Metrics {
 		list = append(list, metrics)
 	}
@@ -81,7 +80,7 @@ func (storage *MemStorage) RestoreFromFile(fileStoragePath string) error {
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
-	metrics := []metrics.Metric{}
+	metrics := []*metrics.Metric{}
 	err = decoder.Decode(&metrics)
 	if err != nil {
 		return fmt.Errorf("error while marshalling file store: %w", err)

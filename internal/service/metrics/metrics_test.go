@@ -9,7 +9,7 @@ import (
 
 func TestUpdateValue(t *testing.T) {
 	type args struct {
-		metric Metric
+		metric *Metric
 		Value  any
 	}
 
@@ -24,7 +24,7 @@ func TestUpdateValue(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    Metric
+		want    *Metric
 		wantErr bool
 	}{
 		{

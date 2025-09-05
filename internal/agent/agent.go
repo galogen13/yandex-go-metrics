@@ -26,7 +26,7 @@ const (
 )
 
 type Agent struct {
-	metrics   []metrics.Metric
+	metrics   []*metrics.Metric
 	config    config.AgentConfig
 	PollCount int64
 }
@@ -67,13 +67,13 @@ func Start(config config.AgentConfig) {
 }
 
 func NewAgent(agentConfig config.AgentConfig) *Agent {
-	return &Agent{config: agentConfig, metrics: []metrics.Metric{}, PollCount: 0}
+	return &Agent{config: agentConfig, metrics: []*metrics.Metric{}, PollCount: 0}
 }
 
 func (agent *Agent) updateMetrics() {
 	var rtm runtime.MemStats
 	runtime.ReadMemStats(&rtm)
-	agent.metrics = []metrics.Metric{}
+	agent.metrics = []*metrics.Metric{}
 
 	err := agent.addNewGaugeMetric("Alloc", float64(rtm.Alloc))
 	if err != nil {
@@ -273,7 +273,7 @@ func (agent *Agent) sendMetrics() {
 
 }
 
-func sendMetricsViaPathParams(client *resty.Client, host string, metric metrics.Metric) error {
+func sendMetricsViaPathParams(client *resty.Client, host string, metric *metrics.Metric) error {
 
 	baseURL := &url.URL{
 		Scheme: "http",
@@ -298,7 +298,7 @@ func sendMetricsViaPathParams(client *resty.Client, host string, metric metrics.
 
 }
 
-func sendMetricsWithJSONBody(client *resty.Client, host string, metric metrics.Metric) error {
+func sendMetricsWithJSONBody(client *resty.Client, host string, metric *metrics.Metric) error {
 
 	logger.Log.Info("prepairing to send metric",
 		zap.String("ID", metric.ID),

@@ -20,8 +20,8 @@ const (
 )
 
 type Server interface {
-	UpdateMetric(metric metrics.Metric) error
-	GetMetric(metric metrics.Metric) (metrics.Metric, error)
+	UpdateMetric(metric *metrics.Metric) error
+	GetMetric(metric *metrics.Metric) (*metrics.Metric, error)
 	GetAllMetricsValues() map[string]any
 }
 
@@ -48,8 +48,8 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", respContentTypeTextPlain)
 
-		metric := metrics.Metric{}
-		if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+		var metric *metrics.Metric
+		if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 			logger.Log.Error("JSON decoding error", zap.Error(err))
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -79,8 +79,8 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 
 		w.Header().Set("Content-type", respContentTypeTextPlain)
 
-		metric := metrics.Metric{}
-		if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+		var metric *metrics.Metric
+		if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 			logger.Log.Error("JSON decoding error", zap.Error(err))
 			w.WriteHeader(http.StatusBadRequest)
 			return
