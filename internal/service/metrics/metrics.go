@@ -99,10 +99,7 @@ func GetMetricsValues(metricsList []Metric) map[string]any {
 }
 
 func (metric Metric) Check(checkValue bool) error {
-	metricIDIsCorrect, err := metric.checkID()
-	if err != nil {
-		return fmt.Errorf("error when checking metric: %w", err)
-	}
+	metricIDIsCorrect := metric.checkID()
 	if !metricIDIsCorrect {
 		return fmt.Errorf("%w: metric ID is incorrect: %s", ErrMetricValidation, metric.ID)
 	}
@@ -146,12 +143,11 @@ func (metric Metric) checkType() bool {
 	return metric.MType == Counter || metric.MType == Gauge
 }
 
-func (metric Metric) checkID() (bool, error) {
-	match, err := regexp.MatchString("^[a-zA-Z][a-zA-Z0-9]*$", metric.ID)
-	if err != nil {
-		return false, fmt.Errorf("error executing regular expression: %w", err)
-	}
-	return match, nil
+var metricIDRegex = regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9]*$")
+
+func (metric Metric) checkID() bool {
+	match := metricIDRegex.MatchString(metric.ID)
+	return match
 }
 
 func (metric Metric) checkValue() bool {
