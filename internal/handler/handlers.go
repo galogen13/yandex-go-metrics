@@ -48,7 +48,7 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", respContentTypeTextPlain)
 
-		var metric *metrics.Metric
+		metric := &metrics.Metric{}
 		if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 			logger.Log.Error("JSON decoding error", zap.Error(err))
 			w.WriteHeader(http.StatusBadRequest)
@@ -79,7 +79,7 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 
 		w.Header().Set("Content-type", respContentTypeTextPlain)
 
-		var metric *metrics.Metric
+		metric := &metrics.Metric{}
 		if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 			logger.Log.Error("JSON decoding error", zap.Error(err))
 			w.WriteHeader(http.StatusBadRequest)
