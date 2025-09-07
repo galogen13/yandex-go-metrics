@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,15 +21,33 @@ const (
 )
 
 type Server interface {
-	UpdateMetric(metric *metrics.Metric) error
-	GetMetric(metric *metrics.Metric) (*metrics.Metric, error)
-	GetAllMetricsValues() map[string]any
+	UpdateMetric(ctx context.Context, metric *metrics.Metric) error
+	GetMetric(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error)
+	GetAllMetricsValues(ctx context.Context) map[string]any
+	PingStorage(ctx context.Context) error
+}
+
+func PingStorageHandler(serverService Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		ctx := r.Context()
+
+		if err := serverService.PingStorage(ctx); err != nil {
+			logger.Log.Error("Error ping storage", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+
+	}
 }
 
 func GetListHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		metricsValues := serverService.GetAllMetricsValues()
+		ctx := r.Context()
+
+		metricsValues := serverService.GetAllMetricsValues(ctx)
 
 		buf, err := web.MetricsListPage(metricsValues)
 		if err != nil {
@@ -46,6 +65,8 @@ func GetListHandler(serverService Server) http.HandlerFunc {
 func GetValueHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
+		ctx := r.Context()
+
 		w.Header().Set("Content-Type", respContentTypeTextPlain)
 
 		metric := &metrics.Metric{}
@@ -55,7 +76,7 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 
-		metric, err := serverService.GetMetric(metric)
+		metric, err := serverService.GetMetric(ctx, metric)
 		if err != nil {
 			logger.Log.Error("Error getting metric", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))
@@ -77,6 +98,8 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 func UpdateHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
+		ctx := r.Context()
+
 		w.Header().Set("Content-type", respContentTypeTextPlain)
 
 		metric := &metrics.Metric{}
@@ -86,7 +109,7 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 
-		err := serverService.UpdateMetric(metric)
+		err := serverService.UpdateMetric(ctx, metric)
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))
@@ -105,6 +128,8 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 func GetValueURLHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
+		ctx := r.Context()
+
 		w.Header().Set("Content-Type", respContentTypeTextPlain)
 
 		mID := chi.URLParam(r, "metrics")
@@ -112,7 +137,7 @@ func GetValueURLHandler(serverService Server) http.HandlerFunc {
 
 		metric := metrics.NewMetrics(mID, mType)
 
-		metric, err := serverService.GetMetric(metric)
+		metric, err := serverService.GetMetric(ctx, metric)
 		if err != nil {
 			logger.Log.Error("Error getting metric value", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))
@@ -126,6 +151,8 @@ func GetValueURLHandler(serverService Server) http.HandlerFunc {
 
 func UpdateURLHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		ctx := r.Context()
 
 		w.Header().Add("Content-type", respContentTypeTextPlain)
 
@@ -167,7 +194,7 @@ func UpdateURLHandler(serverService Server) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		err = serverService.UpdateMetric(metric)
+		err = serverService.UpdateMetric(ctx, metric)
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))
