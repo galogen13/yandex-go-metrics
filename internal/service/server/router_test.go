@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -545,7 +546,7 @@ func TestGzipCompression(t *testing.T) {
 	metric := metrics.NewMetrics(id, mType)
 	err := metric.UpdateValue(value)
 	require.NoError(t, err)
-	stor.Update(metric)
+	stor.Update(context.Background(), metric)
 	config := config.ServerConfig{}
 
 	serverService := NewServerService(config, stor)

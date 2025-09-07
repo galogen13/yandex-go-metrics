@@ -12,6 +12,7 @@ type ServerConfig struct {
 	StoreInterval   *int   `env:"STORE_INTERVAL"` // указатель, т.к. в переменной может быть 0, что важно для нас
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	RestoreStorage  *bool  `env:"RESTORE"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 	StoreOnUpdate   bool
 }
 
@@ -28,6 +29,7 @@ func GetServerConfig() (ServerConfig, error) {
 	logLevelFlag := flag.String("l", "info", "log level")
 	StoreIntervalFlag := flag.Int("i", 300, "store to file interval, seconds")
 	FileStoragePathFlag := flag.String("f", "./metricsstorage", "file storage path")
+	DatabaseDSNFlag := flag.String("d", "host=localhost port=5432 user=postgres password=12345 dbname=metrics sslmode=disable", "file storage path")
 	RestoreFlag := flag.Bool("r", false, "restore storage from file")
 	flag.Parse()
 
@@ -45,6 +47,10 @@ func GetServerConfig() (ServerConfig, error) {
 
 	if cfg.FileStoragePath == "" {
 		cfg.FileStoragePath = *FileStoragePathFlag
+	}
+
+	if cfg.DatabaseDSN == "" {
+		cfg.DatabaseDSN = *DatabaseDSNFlag
 	}
 
 	if cfg.RestoreStorage == nil {
