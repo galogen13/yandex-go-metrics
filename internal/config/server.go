@@ -29,7 +29,7 @@ func GetServerConfig() (ServerConfig, error) {
 	logLevelFlag := flag.String("l", "info", "log level")
 	StoreIntervalFlag := flag.Int("i", 300, "store to file interval, seconds")
 	FileStoragePathFlag := flag.String("f", "./metricsstorage", "file storage path")
-	DatabaseDSNFlag := flag.String("d", "host=localhost port=5432 user=postgres password=12345 dbname=metrics sslmode=disable", "file storage path")
+	DatabaseDSNFlag := flag.String("d", "", "file storage path")
 	RestoreFlag := flag.Bool("r", false, "restore storage from file")
 	flag.Parse()
 
