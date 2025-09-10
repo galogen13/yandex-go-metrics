@@ -546,7 +546,8 @@ func TestGzipCompression(t *testing.T) {
 	metric := metrics.NewMetrics(id, mType)
 	err := metric.UpdateValue(value)
 	require.NoError(t, err)
-	stor.Update(context.Background(), metric)
+	err = stor.Update(context.Background(), metric)
+	require.NoError(t, err)
 	config := config.ServerConfig{}
 
 	serverService := NewServerService(config, stor)

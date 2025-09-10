@@ -7,13 +7,15 @@ import (
 )
 
 type ServerConfig struct {
-	Host            string `env:"ADDRESS"`
-	LogLevel        string `env:"LOG_LEVEL"`
-	StoreInterval   *int   `env:"STORE_INTERVAL"` // указатель, т.к. в переменной может быть 0, что важно для нас
-	FileStoragePath string `env:"FILE_STORAGE_PATH"`
-	RestoreStorage  *bool  `env:"RESTORE"`
-	DatabaseDSN     string `env:"DATABASE_DSN"`
-	StoreOnUpdate   bool
+	Host                 string `env:"ADDRESS"`
+	LogLevel             string `env:"LOG_LEVEL"`
+	StoreInterval        *int   `env:"STORE_INTERVAL"` // указатель, т.к. в переменной может быть 0, что важно для нас
+	FileStoragePath      string `env:"FILE_STORAGE_PATH"`
+	RestoreStorage       *bool  `env:"RESTORE"`
+	DatabaseDSN          string `env:"DATABASE_DSN"`
+	UseDatabaseAsStorage bool
+	StoreOnUpdate        bool
+	StorePeriodically    bool
 }
 
 func GetServerConfig() (ServerConfig, error) {
@@ -49,15 +51,21 @@ func GetServerConfig() (ServerConfig, error) {
 		cfg.FileStoragePath = *FileStoragePathFlag
 	}
 
-	if cfg.DatabaseDSN == "" {
-		cfg.DatabaseDSN = *DatabaseDSNFlag
-	}
-
 	if cfg.RestoreStorage == nil {
 		cfg.RestoreStorage = RestoreFlag
 	}
 
-	cfg.StoreOnUpdate = (*cfg.StoreInterval == 0)
+	if cfg.DatabaseDSN == "" {
+		cfg.DatabaseDSN = *DatabaseDSNFlag
+	}
+
+	cfg.UseDatabaseAsStorage = (cfg.DatabaseDSN != "")
+
+	cfg.StoreOnUpdate = (*cfg.StoreInterval == 0) && !cfg.UseDatabaseAsStorage
+
+	cfg.StorePeriodically = (*cfg.StoreInterval != 0) && !cfg.UseDatabaseAsStorage
+
+	*cfg.RestoreStorage = *cfg.RestoreStorage && !cfg.UseDatabaseAsStorage
 
 	return cfg, nil
 }

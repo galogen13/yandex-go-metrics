@@ -30,36 +30,38 @@ func (storage *MemStorage) Close() error {
 	return nil
 }
 
-func (storage *MemStorage) Update(ctx context.Context, metrics *metrics.Metric) {
+func (storage *MemStorage) Insert(ctx context.Context, metrics *metrics.Metric) error {
+	return storage.Update(ctx, metrics)
+}
+
+func (storage *MemStorage) Update(ctx context.Context, metrics *metrics.Metric) error {
 
 	storage.mu.Lock()
 	defer storage.mu.Unlock()
 	storage.Metrics[metrics.ID] = metrics
+	return nil
 }
 
-func (storage *MemStorage) Get(ctx context.Context, incomingMetric *metrics.Metric) (bool, *metrics.Metric) {
+func (storage *MemStorage) Get(ctx context.Context, incomingMetric *metrics.Metric) (bool, *metrics.Metric, error) {
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 	metric, ok := storage.Metrics[incomingMetric.ID]
-	if !ok {
-		return false, nil
+	if !ok || metric.MType != incomingMetric.MType {
+		return false, nil, nil
 	}
-	if metric.MType != incomingMetric.MType {
-		return false, nil
-	}
-	return ok, metric
+	return ok, metric, nil
 }
 
-func (storage *MemStorage) GetByID(ctx context.Context, ID string) (bool, *metrics.Metric) {
+func (storage *MemStorage) GetByID(ctx context.Context, ID string) (bool, *metrics.Metric, error) {
 
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 
 	metric, ok := storage.Metrics[ID]
-	return ok, metric
+	return ok, metric, nil
 }
 
-func (storage *MemStorage) GetAll(ctx context.Context) []*metrics.Metric {
+func (storage *MemStorage) GetAll(ctx context.Context) ([]*metrics.Metric, error) {
 
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
@@ -68,7 +70,7 @@ func (storage *MemStorage) GetAll(ctx context.Context) []*metrics.Metric {
 	for _, metrics := range storage.Metrics {
 		list = append(list, metrics)
 	}
-	return list
+	return list, nil
 }
 
 func (storage *MemStorage) RestoreFromFile(ctx context.Context, fileStoragePath string) error {
@@ -95,7 +97,10 @@ func (storage *MemStorage) RestoreFromFile(ctx context.Context, fileStoragePath 
 		return fmt.Errorf("error while marshalling file store: %w", err)
 	}
 	for _, metric := range metrics {
-		storage.Update(ctx, metric)
+		err := storage.Update(ctx, metric)
+		if err != nil {
+			return fmt.Errorf("error while updating metrics when restoring from file: %w", err)
+		}
 	}
 	return nil
 }
@@ -106,7 +111,10 @@ func (storage *MemStorage) SaveToFile(ctx context.Context, fileStoragePath strin
 		return fmt.Errorf("fileStoragePath is not filled")
 	}
 
-	metrics := storage.GetAll(ctx)
+	metrics, err := storage.GetAll(ctx)
+	if err != nil {
+		return fmt.Errorf("error while getting all metrics from storage: %w", err)
+	}
 	if len(metrics) == 0 {
 		logger.Log.Info("no metrics to save in file storage")
 		return nil

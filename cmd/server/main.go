@@ -29,15 +29,15 @@ func run() error {
 
 	var mStorage server.Storage
 
-	if config.DatabaseDSN == "" {
-		mStorage = storage.NewMemStorage()
-	} else {
+	if config.UseDatabaseAsStorage {
 		mStorage, err = storage.NewPGStorage(config.DatabaseDSN)
 		if err != nil {
 			return err
 		}
-		defer mStorage.Close()
+	} else {
+		mStorage = storage.NewMemStorage()
 	}
+	defer mStorage.Close()
 
 	serverService := server.NewServerService(config, mStorage)
 
