@@ -4,8 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
+	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
+	"github.com/galogen13/yandex-go-metrics/migrations"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -20,7 +26,17 @@ func NewPGStorage(ps string) (*PGStorage, error) {
 		return nil, err
 	}
 
-	return &PGStorage{db: db}, nil
+	storage := PGStorage{db: db}
+
+	if err := storage.Ping(context.Background()); err != nil {
+		return nil, err
+	}
+
+	if err := storage.runMigrations(); err != nil {
+		return nil, err
+	}
+
+	return &storage, nil
 }
 
 func (storage *PGStorage) Close() error {
@@ -172,5 +188,31 @@ func (storage *PGStorage) RestoreFromFile(ctx context.Context, fileStoragePath s
 
 func (storage *PGStorage) SaveToFile(ctx context.Context, fileStoragePath string) error {
 	//Заглушка, не актуально для БД
+	return nil
+}
+
+func (storage *PGStorage) runMigrations() error {
+	source, err := iofs.New(migrations.FS, ".")
+	if err != nil {
+		return fmt.Errorf("failed to create migration source: %w", err)
+	}
+
+	driver, err := postgres.WithInstance(storage.db, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to create database driver: %w", err)
+	}
+
+	m, err := migrate.NewWithInstance("iofs", source, "postgres", driver)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+	defer m.Close()
+
+	err = m.Up()
+	if err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to apply migrations: %w", err)
+	}
+
+	logger.Log.Info("migrations installed succesfully")
 	return nil
 }
