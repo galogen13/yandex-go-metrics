@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,12 +13,15 @@ import (
 )
 
 type Storage interface {
-	Update(metric *metrics.Metric)
-	Get(*metrics.Metric) (bool, *metrics.Metric)
-	GetByID(ID string) (bool, *metrics.Metric)
-	GetAll() []*metrics.Metric
-	RestoreFromFile(fileStoragePath string) error
-	SaveToFile(fileStoragePath string) error
+	Update(ctx context.Context, metric *metrics.Metric) error
+	Insert(ctx context.Context, metric *metrics.Metric) error
+	Get(ctx context.Context, metric *metrics.Metric) (bool, *metrics.Metric, error)
+	GetByID(ctx context.Context, ID string) (bool, *metrics.Metric, error)
+	GetAll(ctx context.Context) ([]*metrics.Metric, error)
+	RestoreFromFile(ctx context.Context, fileStoragePath string) error
+	SaveToFile(ctx context.Context, fileStoragePath string) error
+	Ping(ctx context.Context) error
+	Close() error
 }
 
 type ServerService struct {
@@ -32,16 +36,13 @@ func NewServerService(config config.ServerConfig, storage Storage) *ServerServic
 func (serverService *ServerService) Start() error {
 
 	if *serverService.Config.RestoreStorage {
-		err := serverService.Storage.RestoreFromFile(serverService.Config.FileStoragePath)
-		if err != nil {
-			return err
-		}
+		serverService.restoreFromFile()
 	}
 
-	stopChan := make(chan struct{})
-	defer close(stopChan)
+	if serverService.Config.StorePeriodically {
+		stopChan := make(chan struct{})
+		defer close(stopChan)
 
-	if !serverService.Config.StoreOnUpdate {
 		go serverService.startPeriodicSave(stopChan)
 	}
 
@@ -50,33 +51,44 @@ func (serverService *ServerService) Start() error {
 		zap.String("address", serverService.Config.Host),
 		zap.String("logLevel", serverService.Config.LogLevel),
 		zap.Int("storeInterval", *serverService.Config.StoreInterval),
-		zap.String("fileStoragePath", serverService.Config.FileStoragePath),
-		zap.Bool("RestoreStorage", *serverService.Config.RestoreStorage),
+		zap.String("file storage path", serverService.Config.FileStoragePath),
+		zap.String("database DSN", serverService.Config.DatabaseDSN),
+		zap.Bool("restore storage", *serverService.Config.RestoreStorage),
+		zap.Bool("use database as storage", serverService.Config.UseDatabaseAsStorage),
+		zap.Bool("store on update", serverService.Config.StoreOnUpdate),
+		zap.Bool("store periodically", serverService.Config.StorePeriodically),
 	)
 	return http.ListenAndServe(serverService.Config.Host, r)
 }
 
-func (serverService *ServerService) UpdateMetric(incomingMetric *metrics.Metric) error {
+func (serverService *ServerService) UpdateMetric(ctx context.Context, incomingMetric *metrics.Metric) error {
 
 	if err := incomingMetric.Check(true); err != nil {
 		return errUpdatingMetrics(err)
 	}
 
-	ok, metric := serverService.Storage.GetByID(incomingMetric.ID)
+	ok, metric, err := serverService.Storage.GetByID(ctx, incomingMetric.ID)
+	if err != nil {
+		return errUpdatingMetrics(err)
+	}
 	if ok {
 		err := metric.CompareTypes(incomingMetric.MType)
 		if err != nil {
 			return errUpdatingMetrics(err)
 		}
 		metric.UpdateValue(incomingMetric.GetValue())
+		if err := serverService.Storage.Update(ctx, metric); err != nil {
+			return errUpdatingMetrics(err)
+		}
 	} else {
 		metric = incomingMetric
+		if err := serverService.Storage.Insert(ctx, metric); err != nil {
+			return errUpdatingMetrics(err)
+		}
 	}
 
-	serverService.Storage.Update(metric)
-
 	if serverService.Config.StoreOnUpdate {
-		err := serverService.Storage.SaveToFile(serverService.Config.FileStoragePath)
+		err := serverService.Storage.SaveToFile(ctx, serverService.Config.FileStoragePath)
 		if err != nil {
 			logger.Log.Info("cant save metrics to file on update", zap.Error(err))
 		}
@@ -86,13 +98,16 @@ func (serverService *ServerService) UpdateMetric(incomingMetric *metrics.Metric)
 
 }
 
-func (serverService ServerService) GetMetric(incomingMetric *metrics.Metric) (*metrics.Metric, error) {
+func (serverService *ServerService) GetMetric(ctx context.Context, incomingMetric *metrics.Metric) (*metrics.Metric, error) {
 
 	if err := incomingMetric.Check(false); err != nil {
 		return nil, errGettingMetrics(err)
 	}
 
-	ok, metric := serverService.Storage.Get(incomingMetric)
+	ok, metric, err := serverService.Storage.Get(ctx, incomingMetric)
+	if err != nil {
+		return nil, errGettingMetrics(err)
+	}
 	if !ok {
 		return nil, fmt.Errorf("%w: ID: %s, mType: %s", metrics.ErrMetricNotFound, incomingMetric.ID, incomingMetric.MType)
 	}
@@ -100,18 +115,49 @@ func (serverService ServerService) GetMetric(incomingMetric *metrics.Metric) (*m
 	return metric, nil
 }
 
-func (serverService ServerService) GetAllMetricsValues() map[string]any {
+func (serverService *ServerService) GetAllMetricsValues(ctx context.Context) (map[string]any, error) {
 
-	allMetrics := serverService.Storage.GetAll()
+	allMetrics, err := serverService.Storage.GetAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting all metrics: %w", err)
+	}
 	metricsValues := metrics.GetMetricsValues(allMetrics)
-	return metricsValues
+	return metricsValues, nil
+
+}
+
+func (serverService *ServerService) PingStorage(ctx context.Context) error {
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	return serverService.Storage.Ping(ctx)
+
+}
+
+func (serverService *ServerService) restoreFromFile() {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := serverService.Storage.RestoreFromFile(ctx, serverService.Config.FileStoragePath)
+	if err != nil {
+		logger.Log.Info("error while restoring from file", zap.Error(err))
+		return
+	}
+	switch ctx.Err() {
+	case context.Canceled:
+		logger.Log.Info("restoring from file cancelled", zap.Error(ctx.Err()))
+	case context.DeadlineExceeded:
+		logger.Log.Info("error while restoring from file", zap.Error(ctx.Err()))
+	}
 
 }
 
 func (serverService *ServerService) startPeriodicSave(stopChan <-chan struct{}) {
-	if *serverService.Config.StoreInterval == 0 {
-		return
-	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
 	ticker := time.NewTicker(time.Second * time.Duration(*serverService.Config.StoreInterval))
 	defer ticker.Stop()
@@ -119,7 +165,7 @@ func (serverService *ServerService) startPeriodicSave(stopChan <-chan struct{}) 
 	for {
 		select {
 		case <-ticker.C:
-			if err := serverService.Storage.SaveToFile(serverService.Config.FileStoragePath); err != nil {
+			if err := serverService.Storage.SaveToFile(ctx, serverService.Config.FileStoragePath); err != nil {
 				logger.Log.Info("cant save metrics to file periodicaly", zap.Error(err))
 			}
 		case <-stopChan:
