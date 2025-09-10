@@ -98,7 +98,6 @@ func (storage *PGStorage) Get(ctx context.Context, metric *metrics.Metric) (bool
 			return false, nil, nil
 		}
 		return false, nil, err
-
 	}
 
 	if value.Valid {
@@ -143,11 +142,6 @@ func (storage *PGStorage) GetByID(ctx context.Context, ID string) (bool, *metric
 
 func (storage *PGStorage) GetAll(ctx context.Context) ([]*metrics.Metric, error) {
 
-	var (
-		value sql.NullFloat64
-		delta sql.NullInt64
-	)
-
 	result := []*metrics.Metric{}
 	rows, err := storage.db.QueryContext(ctx, "SELECT id, mtype, value, delta FROM metrics;")
 	if err != nil {
@@ -157,7 +151,12 @@ func (storage *PGStorage) GetAll(ctx context.Context) ([]*metrics.Metric, error)
 	defer rows.Close()
 
 	for rows.Next() {
-		var qMetric metrics.Metric
+		var (
+			value   sql.NullFloat64
+			delta   sql.NullInt64
+			qMetric metrics.Metric
+		)
+
 		err = rows.Scan(&qMetric.ID, &qMetric.MType, &value, &delta)
 		if err != nil {
 			return nil, err
