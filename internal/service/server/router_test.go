@@ -540,13 +540,13 @@ func compressBody(data string) (io.Reader, error) {
 func TestGzipCompression(t *testing.T) {
 
 	id := "Alloc"
-	mType := "gauge"
+	mType := metrics.Gauge
 	value := 20.99
 	stor := storage.NewMemStorage()
 	metric := metrics.NewMetrics(id, mType)
 	err := metric.UpdateValue(value)
 	require.NoError(t, err)
-	err = stor.Update(context.Background(), metric)
+	err = stor.Update(context.Background(), []*metrics.Metric{metric})
 	require.NoError(t, err)
 	config := config.ServerConfig{}
 

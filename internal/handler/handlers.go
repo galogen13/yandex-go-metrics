@@ -22,6 +22,7 @@ const (
 
 type Server interface {
 	UpdateMetric(ctx context.Context, metric *metrics.Metric) error
+	UpdateMetrics(ctx context.Context, metrics []*metrics.Metric) error
 	GetMetric(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error)
 	GetAllMetricsValues(ctx context.Context) (map[string]any, error)
 	PingStorage(ctx context.Context) error
@@ -115,6 +116,36 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 		}
 
 		err := serverService.UpdateMetric(ctx, metric)
+		if err != nil {
+			logger.Log.Error("Error updating metrics", zap.Error(err))
+			w.WriteHeader(resolveHTTPStatus(err))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, err = http.NoBody.WriteTo(w)
+		if err != nil {
+			logger.Log.Error("Error writing body", zap.Error(err))
+			w.WriteHeader(resolveHTTPStatus(err))
+			return
+		}
+	}
+}
+
+func UpdatesHandler(serverService Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		ctx := r.Context()
+
+		w.Header().Set("Content-type", respContentTypeTextPlain)
+
+		metrics := []*metrics.Metric{}
+		if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
+			logger.Log.Error("JSON decoding error", zap.Error(err))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		err := serverService.UpdateMetrics(ctx, metrics)
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))

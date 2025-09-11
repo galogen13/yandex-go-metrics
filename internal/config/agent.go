@@ -8,15 +8,19 @@ import (
 )
 
 const (
-	APIFormatJSON string = "json"
-	APIFormatURL  string = "url"
+	APIFormatJSON      string = "json"
+	APIFormatURL       string = "url"
+	APIFormatJSONBatch string = "json-batch"
 )
 
 type AgentConfig struct {
 	Host           string `env:"ADDRESS"`         // адрес сервера, на который будут отправляться метрики
 	ReportInterval int    `env:"REPORT_INTERVAL"` // количество секунд между отправками метрик на сервер
 	PollInterval   int    `env:"POLL_INTERVAL"`   // количество секунд между сборами значений метрик
-	APIFormat      string `env:"API_FORMAT"`      // для поддержки старого варианта передачи значений метрик внутри URL установить значение "url", иначе - "json".
+
+	// для поддержки старого варианта передачи значений метрик внутри URL установить значение "url",
+	// "json" - для передачи каждой метрики отдельным запросом, иначе "json-batch" - передача одинм пакетом всех метрик.
+	APIFormat string `env:"API_FORMAT"`
 }
 
 func GetAgentConfig() (AgentConfig, error) {
@@ -31,7 +35,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	hostAddress := flag.String("a", "localhost:8080", "host address")
 	reportInterval := flag.Int("r", 10, "report interval, seconds")
 	pollInterval := flag.Int("p", 2, "poll interval, seconds")
-	apiFormat := flag.String("f", APIFormatJSON, fmt.Sprintf("API format: %s or %s", APIFormatJSON, APIFormatURL))
+	apiFormat := flag.String("f", APIFormatJSONBatch, fmt.Sprintf("API format: \"%s\", \"%s\" or \"%s\"", APIFormatJSONBatch, APIFormatJSON, APIFormatURL))
 	flag.Parse()
 
 	if cfg.Host == "" {
@@ -50,7 +54,7 @@ func GetAgentConfig() (AgentConfig, error) {
 		cfg.APIFormat = *apiFormat
 	}
 
-	if cfg.APIFormat != APIFormatJSON && cfg.APIFormat != APIFormatURL {
+	if cfg.APIFormat != APIFormatJSON && cfg.APIFormat != APIFormatURL && cfg.APIFormat != APIFormatJSONBatch {
 		return AgentConfig{}, fmt.Errorf("unexpected api format: %v", cfg.APIFormat)
 	}
 

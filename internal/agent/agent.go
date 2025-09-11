@@ -254,20 +254,29 @@ func (agent *Agent) sendMetrics() {
 			return nil
 		}))
 
-	for _, metric := range agent.metrics {
-		var err error
-		switch agent.config.APIFormat {
-		case config.APIFormatJSON:
-			err = sendMetricsWithJSONBody(client, agent.config.Host, metric)
-		case config.APIFormatURL:
-			err = sendMetricsViaPathParams(client, agent.config.Host, metric)
-		}
+	if agent.config.APIFormat == config.APIFormatJSONBatch {
+		err := sendMetricsBatchWithJSONBody(client, agent.config.Host, agent.metrics)
 		if err != nil {
-			logger.Log.Error("error when send metric", zap.Error(err))
-			continue
+			logger.Log.Error("error when send metrics batch", zap.Error(err))
+			return
 		}
-		if agent.metricIsPollCounter(metric.ID) {
-			agent.resetPollCounter()
+		agent.resetPollCounter()
+	} else {
+		for _, metric := range agent.metrics {
+			var err error
+			switch agent.config.APIFormat {
+			case config.APIFormatJSON:
+				err = sendMetricWithJSONBody(client, agent.config.Host, metric)
+			case config.APIFormatURL:
+				err = sendMetricsViaPathParams(client, agent.config.Host, metric)
+			}
+			if err != nil {
+				logger.Log.Error("error when send metric", zap.Error(err))
+				continue
+			}
+			if agent.metricIsPollCounter(metric.ID) {
+				agent.resetPollCounter()
+			}
 		}
 	}
 
@@ -298,7 +307,7 @@ func sendMetricsViaPathParams(client *resty.Client, host string, metric *metrics
 
 }
 
-func sendMetricsWithJSONBody(client *resty.Client, host string, metric *metrics.Metric) error {
+func sendMetricWithJSONBody(client *resty.Client, host string, metric *metrics.Metric) error {
 
 	logger.Log.Info("prepairing to send metric",
 		zap.String("ID", metric.ID),
@@ -328,6 +337,54 @@ func sendMetricsWithJSONBody(client *resty.Client, host string, metric *metrics.
 		Scheme: "http",
 		Host:   host,
 		Path:   "update",
+	}
+	fullURL := baseURL.String()
+
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(buf.Bytes()).
+		Post(fullURL)
+	if err != nil {
+		return fmt.Errorf("error sending POST request with JSON body to url %s: %w", fullURL, err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("unexpected code while executing request with JSON body to url %s: %d", fullURL, resp.StatusCode())
+	}
+
+	return nil
+
+}
+
+func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*metrics.Metric) error {
+
+	logger.Log.Info("prepairing to send metrics batch",
+		zap.Any("metrics", metrics),
+	)
+
+	bodyBytes, err := json.Marshal(metrics)
+	if err != nil {
+		return fmt.Errorf("error while marshalling metrics: %w", err)
+	}
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+
+	_, err = gz.Write(bodyBytes)
+	if err != nil {
+		return fmt.Errorf("error while compressing metrics: %w", err)
+	}
+
+	err = gz.Close()
+	if err != nil {
+		return fmt.Errorf("error while close compressing metrics: %w", err)
+	}
+
+	baseURL := &url.URL{
+		Scheme: "http",
+		Host:   host,
+		Path:   "updates",
 	}
 	fullURL := baseURL.String()
 

@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/galogen13/yandex-go-metrics/internal/config"
@@ -13,13 +15,11 @@ import (
 )
 
 type Storage interface {
-	Update(ctx context.Context, metric *metrics.Metric) error
-	Insert(ctx context.Context, metric *metrics.Metric) error
+	Update(ctx context.Context, metrics []*metrics.Metric) error
+	Insert(ctx context.Context, metrics []*metrics.Metric) error
 	Get(ctx context.Context, metric *metrics.Metric) (bool, *metrics.Metric, error)
-	GetByID(ctx context.Context, ID string) (bool, *metrics.Metric, error)
+	GetByIDs(ctx context.Context, IDs []string) (map[string]*metrics.Metric, error)
 	GetAll(ctx context.Context) ([]*metrics.Metric, error)
-	RestoreFromFile(ctx context.Context, fileStoragePath string) error
-	SaveToFile(ctx context.Context, fileStoragePath string) error
 	Ping(ctx context.Context) error
 	Close() error
 }
@@ -63,32 +63,58 @@ func (serverService *ServerService) Start() error {
 
 func (serverService *ServerService) UpdateMetric(ctx context.Context, incomingMetric *metrics.Metric) error {
 
-	if err := incomingMetric.Check(true); err != nil {
-		return errUpdatingMetrics(err)
+	return serverService.UpdateMetrics(ctx, []*metrics.Metric{incomingMetric})
+
+}
+
+func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingMetrics []*metrics.Metric) error {
+
+	IDs := make([]string, 0, len(incomingMetrics))
+	for _, incomingMetric := range incomingMetrics {
+		if err := incomingMetric.Check(true); err != nil {
+			return errUpdatingMetrics(err)
+		}
+		IDs = append(IDs, incomingMetric.ID)
 	}
 
-	ok, metric, err := serverService.Storage.GetByID(ctx, incomingMetric.ID)
+	metricsFound, err := serverService.Storage.GetByIDs(ctx, IDs)
 	if err != nil {
 		return errUpdatingMetrics(err)
 	}
-	if ok {
-		err := metric.CompareTypes(incomingMetric.MType)
-		if err != nil {
+
+	metricsUpdate := make([]*metrics.Metric, 0, len(incomingMetrics))
+	metricsInsert := make([]*metrics.Metric, 0, len(incomingMetrics))
+
+	for _, incomingMetric := range incomingMetrics {
+		metric, ok := metricsFound[incomingMetric.ID]
+
+		if ok {
+			err := metric.CompareTypes(incomingMetric.MType)
+			if err != nil {
+				return errUpdatingMetrics(err)
+			}
+			metric.UpdateValue(incomingMetric.GetValue())
+			metricsUpdate = append(metricsUpdate, metric)
+
+		} else {
+			metricsInsert = append(metricsInsert, incomingMetric)
+		}
+	}
+
+	if len(metricsInsert) > 0 {
+		if err := serverService.Storage.Insert(ctx, metricsInsert); err != nil {
 			return errUpdatingMetrics(err)
 		}
-		metric.UpdateValue(incomingMetric.GetValue())
-		if err := serverService.Storage.Update(ctx, metric); err != nil {
-			return errUpdatingMetrics(err)
-		}
-	} else {
-		metric = incomingMetric
-		if err := serverService.Storage.Insert(ctx, metric); err != nil {
+	}
+
+	if len(metricsUpdate) > 0 {
+		if err := serverService.Storage.Update(ctx, metricsUpdate); err != nil {
 			return errUpdatingMetrics(err)
 		}
 	}
 
 	if serverService.Config.StoreOnUpdate {
-		err := serverService.Storage.SaveToFile(ctx, serverService.Config.FileStoragePath)
+		err := serverService.saveStorageToFile(ctx, serverService.Config.FileStoragePath)
 		if err != nil {
 			logger.Log.Info("cant save metrics to file on update", zap.Error(err))
 		}
@@ -137,10 +163,10 @@ func (serverService *ServerService) PingStorage(ctx context.Context) error {
 
 func (serverService *ServerService) restoreFromFile() {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	err := serverService.Storage.RestoreFromFile(ctx, serverService.Config.FileStoragePath)
+	err := serverService.restoreStorageFromFile(ctx, serverService.Config.FileStoragePath)
 	if err != nil {
 		logger.Log.Info("error while restoring from file", zap.Error(err))
 		return
@@ -154,9 +180,40 @@ func (serverService *ServerService) restoreFromFile() {
 
 }
 
+func (serverService *ServerService) restoreStorageFromFile(ctx context.Context, fileStoragePath string) error {
+
+	if fileStoragePath == "" {
+		return fmt.Errorf("fileStoragePath is not filled")
+	}
+
+	if _, err := os.Stat(fileStoragePath); os.IsNotExist(err) {
+		logger.Log.Info("storage not exists", zap.String("fileStoragePath", fileStoragePath))
+		return nil
+	}
+
+	file, err := os.Open(fileStoragePath)
+	if err != nil {
+		return fmt.Errorf("error while opening file to restore: %w", err)
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	metrics := []*metrics.Metric{}
+	err = decoder.Decode(&metrics)
+	if err != nil {
+		return fmt.Errorf("error while marshalling file store: %w", err)
+	}
+	err = serverService.Storage.Update(ctx, metrics)
+	if err != nil {
+		return fmt.Errorf("error while updating metrics when restoring from file: %w", err)
+	}
+
+	return nil
+}
+
 func (serverService *ServerService) startPeriodicSave(stopChan <-chan struct{}) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	ticker := time.NewTicker(time.Second * time.Duration(*serverService.Config.StoreInterval))
@@ -165,14 +222,44 @@ func (serverService *ServerService) startPeriodicSave(stopChan <-chan struct{}) 
 	for {
 		select {
 		case <-ticker.C:
-			if err := serverService.Storage.SaveToFile(ctx, serverService.Config.FileStoragePath); err != nil {
-				logger.Log.Info("cant save metrics to file periodicaly", zap.Error(err))
+			if err := serverService.saveStorageToFile(ctx, serverService.Config.FileStoragePath); err != nil {
+				logger.Log.Info("cant save metrics to file periodically", zap.Error(err))
 			}
 		case <-stopChan:
 			logger.Log.Info("periodic save stopped")
 			return
 		}
 	}
+}
+
+func (serverService *ServerService) saveStorageToFile(ctx context.Context, fileStoragePath string) error {
+
+	if fileStoragePath == "" {
+		return fmt.Errorf("fileStoragePath is not filled")
+	}
+
+	metrics, err := serverService.Storage.GetAll(ctx)
+	if err != nil {
+		return fmt.Errorf("error while getting all metrics from storage: %w", err)
+	}
+	if len(metrics) == 0 {
+		logger.Log.Info("no metrics to save in file storage")
+		return nil
+	}
+
+	file, err := os.Create(fileStoragePath)
+	if err != nil {
+		return fmt.Errorf("error while create store file: %w", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+
+	if err = encoder.Encode(metrics); err != nil {
+		return fmt.Errorf("error while encode metrics to file: %w", err)
+	}
+	logger.Log.Info("metrics saved to file", zap.String("fileStoragePath", fileStoragePath))
+	return nil
 }
 
 func errUpdatingMetrics(err error) error {

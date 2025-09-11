@@ -31,6 +31,10 @@ func metricsRouter(server handler.Server) *chi.Mux {
 		r.Post("/{mType}/{metrics}/{value}", logger.RequestLogger(handler.UpdateURLHandler(server)))
 	})
 
+	r.Route("/updates", func(r chi.Router) {
+		r.Post("/", logger.RequestLogger(compression.GzipMiddleware(handler.UpdatesHandler(server))))
+	})
+
 	r.Route("/value", func(r chi.Router) {
 		r.Post("/", logger.RequestLogger(compression.GzipMiddleware(handler.GetValueHandler(server))))
 		r.Get("/{mType}/{metrics}", logger.RequestLogger(handler.GetValueURLHandler(server)))
