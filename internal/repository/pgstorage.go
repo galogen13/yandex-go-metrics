@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
@@ -47,7 +46,7 @@ func (storage *PGStorage) Ping(ctx context.Context) error {
 	return storage.db.PingContext(ctx)
 }
 
-func (storage *PGStorage) Insert(ctx context.Context, metrics []*metrics.Metric) error {
+func (storage *PGStorage) Insert(ctx context.Context, metricsInsert []*metrics.Metric) error {
 
 	tx, err := storage.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -62,17 +61,10 @@ func (storage *PGStorage) Insert(ctx context.Context, metrics []*metrics.Metric)
 	}
 	defer stmt.Close()
 
-	for _, metric := range metrics {
-		result, err := stmt.ExecContext(ctx, metric.ID, metric.MType, metric.Value, metric.Delta)
+	for _, metric := range metricsInsert {
+		_, err := stmt.ExecContext(ctx, metric.ID, metric.MType, metric.Value, metric.Delta)
 		if err != nil {
 			return err
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return err
-		}
-		if affected == 0 {
-			return errors.New("metric not found")
 		}
 	}
 
@@ -85,7 +77,7 @@ func (storage *PGStorage) Insert(ctx context.Context, metrics []*metrics.Metric)
 
 }
 
-func (storage *PGStorage) Update(ctx context.Context, metrics []*metrics.Metric) error {
+func (storage *PGStorage) Update(ctx context.Context, metricsUpdate []*metrics.Metric) error {
 
 	tx, err := storage.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -100,7 +92,7 @@ func (storage *PGStorage) Update(ctx context.Context, metrics []*metrics.Metric)
 	}
 	defer stmt.Close()
 
-	for _, metric := range metrics {
+	for _, metric := range metricsUpdate {
 		result, err := stmt.ExecContext(ctx, metric.Value, metric.Delta, metric.ID, metric.MType)
 		if err != nil {
 			return err
@@ -110,7 +102,7 @@ func (storage *PGStorage) Update(ctx context.Context, metrics []*metrics.Metric)
 			return err
 		}
 		if affected == 0 {
-			return errors.New("metric not found")
+			return metrics.ErrMetricNotFound
 		}
 	}
 	err = tx.Commit()
