@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
@@ -142,10 +143,10 @@ func (storage *PGStorage) Get(ctx context.Context, metric *metrics.Metric) (bool
 	return true, &qMetric, nil
 }
 
-func (storage *PGStorage) GetByIDs(ctx context.Context, IDs []string) (map[string]*metrics.Metric, error) {
+func (storage *PGStorage) GetByIDs(ctx context.Context, ids []string) (map[string]*metrics.Metric, error) {
 
 	result := make(map[string]*metrics.Metric)
-	rows, err := storage.db.QueryContext(ctx, "SELECT id, mtype, value, delta FROM metrics WHERE id = ANY($1);", IDs)
+	rows, err := storage.db.QueryContext(ctx, "SELECT id, mtype, value, delta FROM metrics WHERE id = ANY($1);", ids)
 	if err != nil {
 		return nil, err
 	}
@@ -239,11 +240,11 @@ func (storage *PGStorage) runMigrations() error {
 	}
 
 	err = m.Up()
-	if err != nil && err != migrate.ErrNoChange {
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
-	if err == migrate.ErrNoChange {
+	if errors.Is(err, migrate.ErrNoChange) {
 		logger.Log.Info("migrations are already installed")
 	} else {
 		logger.Log.Info("migrations installed succesfully")

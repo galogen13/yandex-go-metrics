@@ -53,7 +53,7 @@ func TestRouter_Update(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := NewServerService(config, stor)
+	serverService := NewServerService(&config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -139,7 +139,7 @@ func TestRouter_Update(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test)
+		resp := testRequest(t, ts, &test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
@@ -151,7 +151,7 @@ func TestRouter_Get(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := NewServerService(config, stor)
+	serverService := NewServerService(&config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -216,7 +216,7 @@ func TestRouter_Get(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test)
+		resp := testRequest(t, ts, &test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
@@ -228,7 +228,7 @@ func TestRouter_Compression(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := NewServerService(config, stor)
+	serverService := NewServerService(&config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -269,7 +269,7 @@ func TestRouter_Compression(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test)
+		resp := testRequest(t, ts, &test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
@@ -281,7 +281,7 @@ func TestRouter_UpdateURL(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := NewServerService(config, stor)
+	serverService := NewServerService(&config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -356,7 +356,7 @@ func TestRouter_UpdateURL(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test)
+		resp := testRequest(t, ts, &test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
@@ -368,7 +368,7 @@ func TestRouter_GetList(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := NewServerService(config, stor)
+	serverService := NewServerService(&config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -408,7 +408,7 @@ func TestRouter_GetList(t *testing.T) {
 
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test)
+		resp := testRequest(t, ts, &test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 
 		assert.Contains(t, resp.Body, test.want.tdMetricsID)
@@ -423,7 +423,7 @@ func TestRouter_GetURL(t *testing.T) {
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
 
-	serverService := NewServerService(config, stor)
+	serverService := NewServerService(&config, stor)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -480,14 +480,14 @@ func TestRouter_GetURL(t *testing.T) {
 	}
 	for _, test := range tests {
 		// Тесты выполняются последовательно, не в отдельных горутинах, т.к. результат прошлых кейсов влияет на будущие
-		resp := testRequest(t, ts, test)
+		resp := testRequest(t, ts, &test)
 		assert.Equal(t, test.want.status, resp.StatusCode, test.name)
 		assert.Equal(t, test.want.response, resp.Body, test.name)
 		assert.Equal(t, test.want.contentType, resp.ContentType, test.name)
 	}
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, tc testCase) testRequestResponse {
+func testRequest(t *testing.T, ts *httptest.Server, tc *testCase) testRequestResponse {
 
 	var body io.Reader
 	var err error
@@ -499,7 +499,7 @@ func testRequest(t *testing.T, ts *httptest.Server, tc testCase) testRequestResp
 	} else {
 		body = strings.NewReader(tc.body)
 	}
-	req, err := http.NewRequest(tc.method, ts.URL+tc.url, body)
+	req, err := http.NewRequestWithContext(t.Context(), tc.method, ts.URL+tc.url, body)
 	req.Header.Set("Content-Type", tc.contentType)
 	if tc.compressReq {
 		req.Header.Set("Content-Encoding", "gzip")
@@ -548,7 +548,8 @@ func TestGzipCompression(t *testing.T) {
 	require.NoError(t, err)
 	err = stor.Update(context.Background(), []*metrics.Metric{metric})
 	require.NoError(t, err)
-	config := config.ServerConfig{}
+	config, err := config.GetServerConfig()
+	require.NoError(t, err)
 
 	serverService := NewServerService(config, stor)
 
@@ -557,9 +558,9 @@ func TestGzipCompression(t *testing.T) {
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
-	requestBody := fmt.Sprintf(`{"id":"%s","type":"%s"}`, id, mType)
+	requestBody := fmt.Sprintf(`{"id":%q,"type":%q}`, id, mType)
 
-	successBody := fmt.Sprintf(`{"id":"%s","type":"%s","value":%.2f}`, id, mType, value)
+	successBody := fmt.Sprintf(`{"id":%q,"type":%q,"value":%.2f}`, id, mType, value)
 
 	t.Run("sends_gzip", func(t *testing.T) {
 		buf := bytes.NewBuffer(nil)

@@ -44,14 +44,14 @@ func metricsRouter(server handler.Server) *chi.Mux {
 }
 
 func notFoundHandler() http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", respContentTypeTextPlain)
 		w.WriteHeader(http.StatusNotFound)
 	})
 }
 
 func methodNotAllowedHandler() http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", respContentTypeTextPlain)
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	})

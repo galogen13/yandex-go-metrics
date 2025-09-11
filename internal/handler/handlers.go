@@ -180,7 +180,11 @@ func GetValueURLHandler(serverService Server) http.HandlerFunc {
 
 		metric, err := serverService.GetMetric(ctx, metric)
 		if err != nil {
-			logger.Log.Error("Error getting metric value", zap.Error(err))
+			if errors.Is(err, metrics.ErrMetricNotFound) {
+				logger.Log.Info("Error getting by URL metric", zap.Error(err))
+			} else {
+				logger.Log.Error("Error getting by URL metric", zap.Error(err))
+			}
 			w.WriteHeader(resolveHTTPStatus(err))
 			return
 		}

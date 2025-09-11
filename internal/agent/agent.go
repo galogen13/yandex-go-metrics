@@ -31,7 +31,7 @@ type Agent struct {
 	PollCount int64
 }
 
-func (agent Agent) metricIsPollCounter(name string) bool {
+func (agent *Agent) metricIsPollCounter(name string) bool {
 	return name == pollCounterName
 }
 
@@ -249,7 +249,7 @@ func (agent *Agent) sendMetrics() {
 
 	client := resty.New()
 	client.SetRedirectPolicy(resty.RedirectPolicyFunc(
-		func(req *http.Request, via []*http.Request) error {
+		func(req *http.Request, _ []*http.Request) error {
 			req.Method = http.MethodPost
 			return nil
 		}))

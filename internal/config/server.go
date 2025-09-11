@@ -18,13 +18,13 @@ type ServerConfig struct {
 	StorePeriodically    bool
 }
 
-func GetServerConfig() (ServerConfig, error) {
+func GetServerConfig() (*ServerConfig, error) {
 
 	var cfg ServerConfig
 
 	err := env.Parse(&cfg)
 	if err != nil {
-		return ServerConfig{}, err
+		return nil, err
 	}
 
 	hostAddressFlag := flag.String("a", "localhost:8080", "host address")
@@ -67,5 +67,5 @@ func GetServerConfig() (ServerConfig, error) {
 
 	*cfg.RestoreStorage = *cfg.RestoreStorage && !cfg.UseDatabaseAsStorage
 
-	return cfg, nil
+	return &cfg, nil
 }

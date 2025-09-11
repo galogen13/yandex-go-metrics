@@ -26,10 +26,10 @@ type Storage interface {
 
 type ServerService struct {
 	Storage Storage
-	Config  config.ServerConfig
+	Config  *config.ServerConfig
 }
 
-func NewServerService(config config.ServerConfig, storage Storage) *ServerService {
+func NewServerService(config *config.ServerConfig, storage Storage) *ServerService {
 	return &ServerService{Config: config, Storage: storage}
 }
 
