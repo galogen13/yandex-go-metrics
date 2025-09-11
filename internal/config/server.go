@@ -7,27 +7,31 @@ import (
 )
 
 type ServerConfig struct {
-	Host            string `env:"ADDRESS"`
-	LogLevel        string `env:"LOG_LEVEL"`
-	StoreInterval   *int   `env:"STORE_INTERVAL"` // указатель, т.к. в переменной может быть 0, что важно для нас
-	FileStoragePath string `env:"FILE_STORAGE_PATH"`
-	RestoreStorage  *bool  `env:"RESTORE"`
-	StoreOnUpdate   bool
+	Host                 string `env:"ADDRESS"`
+	LogLevel             string `env:"LOG_LEVEL"`
+	StoreInterval        *int   `env:"STORE_INTERVAL"` // указатель, т.к. в переменной может быть 0, что важно для нас
+	FileStoragePath      string `env:"FILE_STORAGE_PATH"`
+	RestoreStorage       *bool  `env:"RESTORE"`
+	DatabaseDSN          string `env:"DATABASE_DSN"`
+	UseDatabaseAsStorage bool
+	StoreOnUpdate        bool
+	StorePeriodically    bool
 }
 
-func GetServerConfig() (ServerConfig, error) {
+func GetServerConfig() (*ServerConfig, error) {
 
 	var cfg ServerConfig
 
 	err := env.Parse(&cfg)
 	if err != nil {
-		return ServerConfig{}, err
+		return nil, err
 	}
 
 	hostAddressFlag := flag.String("a", "localhost:8080", "host address")
 	logLevelFlag := flag.String("l", "info", "log level")
 	StoreIntervalFlag := flag.Int("i", 300, "store to file interval, seconds")
 	FileStoragePathFlag := flag.String("f", "./metricsstorage", "file storage path")
+	DatabaseDSNFlag := flag.String("d", "", "file storage path")
 	RestoreFlag := flag.Bool("r", false, "restore storage from file")
 	flag.Parse()
 
@@ -51,7 +55,17 @@ func GetServerConfig() (ServerConfig, error) {
 		cfg.RestoreStorage = RestoreFlag
 	}
 
-	cfg.StoreOnUpdate = (*cfg.StoreInterval == 0)
+	if cfg.DatabaseDSN == "" {
+		cfg.DatabaseDSN = *DatabaseDSNFlag
+	}
 
-	return cfg, nil
+	cfg.UseDatabaseAsStorage = (cfg.DatabaseDSN != "")
+
+	cfg.StoreOnUpdate = (*cfg.StoreInterval == 0) && !cfg.UseDatabaseAsStorage
+
+	cfg.StorePeriodically = (*cfg.StoreInterval != 0) && !cfg.UseDatabaseAsStorage
+
+	*cfg.RestoreStorage = *cfg.RestoreStorage && !cfg.UseDatabaseAsStorage
+
+	return &cfg, nil
 }

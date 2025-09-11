@@ -1,14 +1,10 @@
 package storage
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
+	"context"
 	"sync"
 
-	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
-	"go.uber.org/zap"
 )
 
 type MemStorage struct {
@@ -21,36 +17,57 @@ func NewMemStorage() *MemStorage {
 	return &newStorage
 }
 
-func (storage *MemStorage) Update(metrics *metrics.Metric) {
+func (storage *MemStorage) Ping(ctx context.Context) error {
+	return nil
+}
+
+func (storage *MemStorage) Close() error {
+	return nil
+}
+
+func (storage *MemStorage) Insert(ctx context.Context, metrics []*metrics.Metric) error {
+	return storage.Update(ctx, metrics)
+}
+
+func (storage *MemStorage) Update(ctx context.Context, metrics []*metrics.Metric) error {
 
 	storage.mu.Lock()
 	defer storage.mu.Unlock()
-	storage.Metrics[metrics.ID] = metrics
+	for _, metric := range metrics {
+		storage.Metrics[metric.ID] = metric
+	}
+
+	return nil
 }
 
-func (storage *MemStorage) Get(incomingMetric *metrics.Metric) (bool, *metrics.Metric) {
+func (storage *MemStorage) Get(ctx context.Context, incomingMetric *metrics.Metric) (bool, *metrics.Metric, error) {
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 	metric, ok := storage.Metrics[incomingMetric.ID]
-	if !ok {
-		return false, nil
+	if !ok || metric.MType != incomingMetric.MType {
+		return false, nil, nil
 	}
-	if metric.MType != incomingMetric.MType {
-		return false, nil
-	}
-	return ok, metric
+	return ok, metric, nil
 }
 
-func (storage *MemStorage) GetByID(ID string) (bool, *metrics.Metric) {
+func (storage *MemStorage) GetByIDs(ctx context.Context, IDs []string) (map[string]*metrics.Metric, error) {
 
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 
-	metric, ok := storage.Metrics[ID]
-	return ok, metric
+	result := make(map[string]*metrics.Metric)
+
+	for _, ID := range IDs {
+		metric, ok := storage.Metrics[ID]
+		if ok {
+			result[metric.ID] = metric
+		}
+	}
+
+	return result, nil
 }
 
-func (storage *MemStorage) GetAll() []*metrics.Metric {
+func (storage *MemStorage) GetAll(ctx context.Context) ([]*metrics.Metric, error) {
 
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
@@ -59,61 +76,5 @@ func (storage *MemStorage) GetAll() []*metrics.Metric {
 	for _, metrics := range storage.Metrics {
 		list = append(list, metrics)
 	}
-	return list
-}
-
-func (storage *MemStorage) RestoreFromFile(fileStoragePath string) error {
-
-	if fileStoragePath == "" {
-		return fmt.Errorf("fileStoragePath is not filled")
-	}
-
-	if _, err := os.Stat(fileStoragePath); os.IsNotExist(err) {
-		logger.Log.Info("storage not exists", zap.String("fileStoragePath", fileStoragePath))
-		return nil
-	}
-
-	file, err := os.Open(fileStoragePath)
-	if err != nil {
-		return fmt.Errorf("error while opening file to restore: %w", err)
-	}
-	defer file.Close()
-
-	decoder := json.NewDecoder(file)
-	metrics := []*metrics.Metric{}
-	err = decoder.Decode(&metrics)
-	if err != nil {
-		return fmt.Errorf("error while marshalling file store: %w", err)
-	}
-	for _, metric := range metrics {
-		storage.Update(metric)
-	}
-	return nil
-}
-
-func (storage *MemStorage) SaveToFile(fileStoragePath string) error {
-
-	if fileStoragePath == "" {
-		return fmt.Errorf("fileStoragePath is not filled")
-	}
-
-	metrics := storage.GetAll()
-	if len(metrics) == 0 {
-		logger.Log.Info("no metrics to save in file storage")
-		return nil
-	}
-
-	file, err := os.Create(fileStoragePath)
-	if err != nil {
-		return fmt.Errorf("error while create store file: %w", err)
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-
-	if err = encoder.Encode(metrics); err != nil {
-		return fmt.Errorf("error while encode metrics to file: %w", err)
-	}
-	logger.Log.Info("metrics saved to file", zap.String("fileStoragePath", fileStoragePath))
-	return nil
+	return list, nil
 }

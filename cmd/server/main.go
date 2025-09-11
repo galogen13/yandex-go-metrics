@@ -27,8 +27,19 @@ func run() error {
 	}
 	defer logger.Log.Sync()
 
-	storage := storage.NewMemStorage()
-	serverService := server.NewServerService(config, storage)
+	var mStorage server.Storage
+
+	if config.UseDatabaseAsStorage {
+		mStorage, err = storage.NewPGStorage(config.DatabaseDSN)
+		if err != nil {
+			return err
+		}
+	} else {
+		mStorage = storage.NewMemStorage()
+	}
+	defer mStorage.Close()
+
+	serverService := server.NewServerService(config, mStorage)
 
 	if err := serverService.Start(); err != nil {
 		return err
