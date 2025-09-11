@@ -85,7 +85,14 @@ func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingM
 	metricsUpdate := make([]*metrics.Metric, 0, len(incomingMetrics))
 	metricsInsert := make([]*metrics.Metric, 0, len(incomingMetrics))
 
+	seen := make(map[string]bool)
+
 	for _, incomingMetric := range incomingMetrics {
+		if seen[incomingMetric.ID] {
+			continue
+		} else {
+			seen[incomingMetric.ID] = true
+		}
 		metric, ok := metricsFound[incomingMetric.ID]
 
 		if ok {

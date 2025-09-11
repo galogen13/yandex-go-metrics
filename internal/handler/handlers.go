@@ -84,7 +84,12 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 
 		metric, err := serverService.GetMetric(ctx, metric)
 		if err != nil {
-			logger.Log.Error("Error getting metric", zap.Error(err))
+			if errors.Is(err, metrics.ErrMetricNotFound) {
+				logger.Log.Info("Error getting metric", zap.Error(err))
+			} else {
+				logger.Log.Error("Error getting metric", zap.Error(err))
+			}
+
 			w.WriteHeader(resolveHTTPStatus(err))
 			return
 		}
