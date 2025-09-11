@@ -98,6 +98,17 @@ func GetMetricsValues(metricsList []*Metric) map[string]any {
 	return result
 }
 
+func GetMetricsFromMap(metrics map[string]*Metric) []*Metric {
+
+	result := make([]*Metric, 0, len(metrics))
+
+	for _, metric := range metrics {
+		result = append(result, metric)
+	}
+
+	return result
+}
+
 func (metric Metric) Check(checkValue bool) error {
 	metricIDIsCorrect := metric.checkID()
 	if !metricIDIsCorrect {

@@ -82,40 +82,48 @@ func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingM
 		return errUpdatingMetrics(err)
 	}
 
-	metricsUpdate := make([]*metrics.Metric, 0, len(incomingMetrics))
-	metricsInsert := make([]*metrics.Metric, 0, len(incomingMetrics))
-
-	seen := make(map[string]bool)
+	metricsUpdate := make(map[string]*metrics.Metric, len(incomingMetrics)/2+1)
+	metricsInsert := make(map[string]*metrics.Metric, len(incomingMetrics)/2+1)
 
 	for _, incomingMetric := range incomingMetrics {
-		if seen[incomingMetric.ID] {
-			continue
-		} else {
-			seen[incomingMetric.ID] = true
-		}
-		metric, ok := metricsFound[incomingMetric.ID]
 
+		metric, ok := metricsInsert[incomingMetric.ID]
+		if ok {
+			metric.UpdateValue(incomingMetric.GetValue())
+			metricsInsert[metric.ID] = metric
+			continue
+		}
+
+		metric, ok = metricsUpdate[incomingMetric.ID]
+		if ok {
+			metric.UpdateValue(incomingMetric.GetValue())
+			metricsUpdate[metric.ID] = metric
+			continue
+		}
+
+		metric, ok = metricsFound[incomingMetric.ID]
 		if ok {
 			err := metric.CompareTypes(incomingMetric.MType)
 			if err != nil {
 				return errUpdatingMetrics(err)
 			}
 			metric.UpdateValue(incomingMetric.GetValue())
-			metricsUpdate = append(metricsUpdate, metric)
+			metricsUpdate[metric.ID] = metric
 
 		} else {
-			metricsInsert = append(metricsInsert, incomingMetric)
+			metricsInsert[metric.ID] = metric
 		}
+
 	}
 
 	if len(metricsInsert) > 0 {
-		if err := serverService.Storage.Insert(ctx, metricsInsert); err != nil {
+		if err := serverService.Storage.Insert(ctx, metrics.GetMetricsFromMap(metricsInsert)); err != nil {
 			return errUpdatingMetrics(err)
 		}
 	}
 
 	if len(metricsUpdate) > 0 {
-		if err := serverService.Storage.Update(ctx, metricsUpdate); err != nil {
+		if err := serverService.Storage.Update(ctx, metrics.GetMetricsFromMap(metricsUpdate)); err != nil {
 			return errUpdatingMetrics(err)
 		}
 	}
