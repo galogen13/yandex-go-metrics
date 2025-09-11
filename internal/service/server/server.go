@@ -111,7 +111,7 @@ func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingM
 			metricsUpdate[metric.ID] = metric
 
 		} else {
-			metricsInsert[metric.ID] = metric
+			metricsInsert[incomingMetric.ID] = incomingMetric
 		}
 
 	}
