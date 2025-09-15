@@ -397,6 +397,7 @@ func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*
 			logger.Log.Info("retryable error, sending metrics delayed",
 				zap.Int("delay", delay),
 				zap.Error(err),
+				zap.Int("status code", resp.StatusCode()),
 			)
 			time.Sleep(time.Duration(delay) * time.Second)
 			resp, err = req.Post(fullURL)
