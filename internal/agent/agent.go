@@ -258,7 +258,7 @@ func (agent *Agent) sendMetrics() {
 		err := sendMetricsBatchWithJSONBody(client, agent.config.Host, agent.metrics)
 
 		if err != nil {
-			logger.Log.Error("error when send metrics batch", zap.Error(err))
+			logger.Log.Error("error sending metrics batch", zap.Error(err))
 			return
 		}
 		agent.resetPollCounter()
@@ -387,42 +387,29 @@ func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*
 	classifier := NewAgentErrorClassifier()
 
 	for attempt := 0; attempt < maxAttepmts; attempt++ {
-		needRetry := false
-		if err != nil {
-			classification := classifier.ClassifyError(err)
-			if classification == Retriable {
-				needRetry = true
-			} else {
-				return fmt.Errorf("error sending POST request with JSON body to url %s: %w", fullURL, err)
-			}
-		} else {
-			if resp.StatusCode() != http.StatusOK {
-				classification := classifier.ClassifyStatusCode(resp.StatusCode())
-				if classification == Retriable {
-					needRetry = true
-				} else {
-					return fmt.Errorf("unexpected code while executing request with JSON body to url %s: %d", fullURL, resp.StatusCode())
-				}
-			}
-		}
-
-		if !needRetry {
+		classification := classifier.Classify(err, resp.StatusCode())
+		switch classification {
+		case Success:
 			logger.Log.Info("metrics sent successfully", zap.String("Method", req.Method), zap.String("URL", fullURL))
 			return nil
+		case Retriable:
+			delay := firstDelay + attempt*2
+			logger.Log.Info("retryable error, sending metrics delayed",
+				zap.Int("delay", delay),
+				zap.Error(err),
+			)
+			time.Sleep(time.Duration(delay) * time.Second)
+			resp, err = req.Post(fullURL)
+			logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
+		case NonRetriable:
+			return fmt.Errorf("non retriable error when sending POST request with JSON body to url %s: err: %w, status code : %d", fullURL, err, resp.StatusCode())
 		}
-
-		delay := firstDelay + attempt*2
-		logger.Log.Info("retryable error, sending metrics delayed",
-			zap.Int("delay", delay),
-			zap.Error(err),
-		)
-		time.Sleep(time.Duration(delay) * time.Second)
-		resp, err = req.Post(fullURL)
-		logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
-
 	}
 
-	if err != nil || resp.StatusCode() != http.StatusOK {
+	classification := classifier.Classify(err, resp.StatusCode())
+	if classification == Success {
+		logger.Log.Info("metrics sent successfully", zap.String("Method", req.Method), zap.String("URL", fullURL))
+	} else {
 		return fmt.Errorf("operation aborted after %d attempts: err: %w, status code: %d", maxAttepmts, err, resp.StatusCode())
 	}
 

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"errors"
+	"net/http"
 	"syscall"
 
 	"golang.org/x/sys/windows"
@@ -12,6 +13,7 @@ type AgentErrorClassification int
 const (
 	NonRetriable AgentErrorClassification = iota
 	Retriable
+	Success
 )
 
 type AgentErrorClassifier struct{}
@@ -20,32 +22,32 @@ func NewAgentErrorClassifier() *AgentErrorClassifier {
 	return &AgentErrorClassifier{}
 }
 
-func (c *AgentErrorClassifier) ClassifyError(err error) AgentErrorClassification {
+func (c *AgentErrorClassifier) Classify(err error, statusCode int) (classification AgentErrorClassification) {
+	if err != nil {
+		return c.classifyError(err)
+	}
+
+	if statusCode != http.StatusOK {
+		return c.classifyStatusCode(statusCode)
+	}
+
+	return Success
+}
+
+func (c *AgentErrorClassifier) classifyError(err error) AgentErrorClassification {
 	if err == nil {
 		return NonRetriable
 	}
 
 	var reqErr syscall.Errno
 	if errors.As(err, &reqErr) {
-		return СlassifySyscallError(reqErr)
+		return classifySyscallError(reqErr)
 	}
 
 	return NonRetriable
 }
 
-func (c *AgentErrorClassifier) ClassifyStatusCode(statusCode int) AgentErrorClassification {
-
-	if statusCode >= 500 ||
-		statusCode == 429 ||
-		statusCode == 408 {
-		return Retriable
-	}
-
-	return NonRetriable
-
-}
-
-func СlassifySyscallError(reqErr syscall.Errno) AgentErrorClassification {
+func classifySyscallError(reqErr syscall.Errno) AgentErrorClassification {
 
 	switch reqErr {
 	//unix
@@ -64,4 +66,16 @@ func СlassifySyscallError(reqErr syscall.Errno) AgentErrorClassification {
 	}
 
 	return NonRetriable
+}
+
+func (c *AgentErrorClassifier) classifyStatusCode(statusCode int) AgentErrorClassification {
+
+	if statusCode >= http.StatusInternalServerError ||
+		statusCode == http.StatusTooManyRequests ||
+		statusCode == http.StatusRequestTimeout {
+		return Retriable
+	}
+
+	return NonRetriable
+
 }
