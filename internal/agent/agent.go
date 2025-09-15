@@ -256,6 +256,7 @@ func (agent *Agent) sendMetrics() {
 
 	if agent.config.APIFormat == config.APIFormatJSONBatch {
 		err := sendMetricsBatchWithJSONBody(client, agent.config.Host, agent.metrics)
+
 		if err != nil {
 			logger.Log.Error("error when send metrics batch", zap.Error(err))
 			return
@@ -320,17 +321,9 @@ func sendMetricWithJSONBody(client *resty.Client, host string, metric *metrics.M
 		return fmt.Errorf("error while marshalling metric with ID %s: %w", metric.ID, err)
 	}
 
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-
-	_, err = gz.Write(bodyBytes)
+	buf, err := gzipCompress(bodyBytes)
 	if err != nil {
-		return fmt.Errorf("error while compressing metric with ID %s: %w", metric.ID, err)
-	}
-
-	err = gz.Close()
-	if err != nil {
-		return fmt.Errorf("error while close compressing metric with ID %s: %w", metric.ID, err)
+		return fmt.Errorf("error while gzip compress metric with ID %s: %w", metric.ID, err)
 	}
 
 	baseURL := &url.URL{
@@ -368,17 +361,9 @@ func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*
 		return fmt.Errorf("error while marshalling metrics: %w", err)
 	}
 
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-
-	_, err = gz.Write(bodyBytes)
+	buf, err := gzipCompress(bodyBytes)
 	if err != nil {
-		return fmt.Errorf("error while compressing metrics: %w", err)
-	}
-
-	err = gz.Close()
-	if err != nil {
-		return fmt.Errorf("error while close compressing metrics: %w", err)
+		return fmt.Errorf("error while gzip compress metrics: %w", err)
 	}
 
 	baseURL := &url.URL{
@@ -388,19 +373,75 @@ func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*
 	}
 	fullURL := baseURL.String()
 
-	resp, err := client.R().
+	req := client.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
-		SetBody(buf.Bytes()).
-		Post(fullURL)
-	if err != nil {
-		return fmt.Errorf("error sending POST request with JSON body to url %s: %w", fullURL, err)
+		SetBody(buf.Bytes())
+
+	resp, err := req.Post(fullURL)
+	logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
+
+	maxAttepmts := 3
+	firstDelay := 1
+
+	classifier := NewAgentErrorClassifier()
+
+	for attempt := 0; attempt < maxAttepmts; attempt++ {
+		needRetry := false
+		if err != nil {
+			classification := classifier.ClassifyError(err)
+			if classification == Retriable {
+				needRetry = true
+			} else {
+				return fmt.Errorf("error sending POST request with JSON body to url %s: %w", fullURL, err)
+			}
+		} else {
+			if resp.StatusCode() != http.StatusOK {
+				classification := classifier.ClassifyStatusCode(resp.StatusCode())
+				if classification == Retriable {
+					needRetry = true
+				} else {
+					return fmt.Errorf("unexpected code while executing request with JSON body to url %s: %d", fullURL, resp.StatusCode())
+				}
+			}
+		}
+
+		if !needRetry {
+			logger.Log.Info("metrics sent successfully", zap.String("Method", req.Method), zap.String("URL", fullURL))
+			return nil
+		}
+
+		delay := firstDelay + attempt*2
+		logger.Log.Info("retryable error, sending metrics delayed",
+			zap.Int("delay", delay),
+			zap.Error(err),
+		)
+		time.Sleep(time.Duration(delay) * time.Second)
+		resp, err = req.Post(fullURL)
+		logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
+
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("unexpected code while executing request with JSON body to url %s: %d", fullURL, resp.StatusCode())
+	if err != nil || resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("operation aborted after %d attempts: err: %w, status code: %d", maxAttepmts, err, resp.StatusCode())
 	}
 
 	return nil
 
+}
+
+func gzipCompress(bodyBytes []byte) (bytes.Buffer, error) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+
+	_, err := gz.Write(bodyBytes)
+	if err != nil {
+		return bytes.Buffer{}, fmt.Errorf("error while compressing metric: %w", err)
+	}
+
+	err = gz.Close()
+	if err != nil {
+		return bytes.Buffer{}, fmt.Errorf("error while close compressing metric: %w", err)
+	}
+	return buf, nil
 }
