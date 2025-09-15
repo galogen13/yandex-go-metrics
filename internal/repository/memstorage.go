@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -21,14 +22,22 @@ func NewMemStorage() *MemStorage {
 	return &newStorage
 }
 
-func (storage *MemStorage) Update(metrics *metrics.Metric) {
+func (storage *MemStorage) Ping(ctx context.Context) error {
+	return nil
+}
+
+func (storage *MemStorage) Close() error {
+	return nil
+}
+
+func (storage *MemStorage) Update(ctx context.Context, metrics *metrics.Metric) {
 
 	storage.mu.Lock()
 	defer storage.mu.Unlock()
 	storage.Metrics[metrics.ID] = metrics
 }
 
-func (storage *MemStorage) Get(incomingMetric *metrics.Metric) (bool, *metrics.Metric) {
+func (storage *MemStorage) Get(ctx context.Context, incomingMetric *metrics.Metric) (bool, *metrics.Metric) {
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 	metric, ok := storage.Metrics[incomingMetric.ID]
@@ -41,7 +50,7 @@ func (storage *MemStorage) Get(incomingMetric *metrics.Metric) (bool, *metrics.M
 	return ok, metric
 }
 
-func (storage *MemStorage) GetByID(ID string) (bool, *metrics.Metric) {
+func (storage *MemStorage) GetByID(ctx context.Context, ID string) (bool, *metrics.Metric) {
 
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
@@ -50,7 +59,7 @@ func (storage *MemStorage) GetByID(ID string) (bool, *metrics.Metric) {
 	return ok, metric
 }
 
-func (storage *MemStorage) GetAll() []*metrics.Metric {
+func (storage *MemStorage) GetAll(ctx context.Context) []*metrics.Metric {
 
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
@@ -62,7 +71,7 @@ func (storage *MemStorage) GetAll() []*metrics.Metric {
 	return list
 }
 
-func (storage *MemStorage) RestoreFromFile(fileStoragePath string) error {
+func (storage *MemStorage) RestoreFromFile(ctx context.Context, fileStoragePath string) error {
 
 	if fileStoragePath == "" {
 		return fmt.Errorf("fileStoragePath is not filled")
@@ -86,18 +95,18 @@ func (storage *MemStorage) RestoreFromFile(fileStoragePath string) error {
 		return fmt.Errorf("error while marshalling file store: %w", err)
 	}
 	for _, metric := range metrics {
-		storage.Update(metric)
+		storage.Update(ctx, metric)
 	}
 	return nil
 }
 
-func (storage *MemStorage) SaveToFile(fileStoragePath string) error {
+func (storage *MemStorage) SaveToFile(ctx context.Context, fileStoragePath string) error {
 
 	if fileStoragePath == "" {
 		return fmt.Errorf("fileStoragePath is not filled")
 	}
 
-	metrics := storage.GetAll()
+	metrics := storage.GetAll(ctx)
 	if len(metrics) == 0 {
 		logger.Log.Info("no metrics to save in file storage")
 		return nil
