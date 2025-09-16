@@ -6,7 +6,6 @@ import (
 
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
-	"golang.org/x/sys/windows"
 )
 
 type PGErrorClassification int
@@ -99,11 +98,11 @@ func classifySyscallError(reqErr syscall.Errno) PGErrorClassification {
 		syscall.EAGAIN:
 		return Retriable
 
-	//windows
-	case windows.WSAECONNREFUSED,
-		windows.WSAECONNRESET,
-		windows.WSAETIMEDOUT:
-		return Retriable
+		// //windows
+		// case windows.WSAECONNREFUSED,
+		// 	windows.WSAECONNRESET,
+		// 	windows.WSAETIMEDOUT:
+		// 	return Retriable
 
 	}
 

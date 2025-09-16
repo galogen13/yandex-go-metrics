@@ -4,8 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"syscall"
-
-	"golang.org/x/sys/windows"
 )
 
 type AgentErrorClassification int
@@ -57,11 +55,11 @@ func classifySyscallError(reqErr syscall.Errno) AgentErrorClassification {
 		syscall.EAGAIN:
 		return Retriable
 
-	//windows
-	case windows.WSAECONNREFUSED,
-		windows.WSAECONNRESET,
-		windows.WSAETIMEDOUT:
-		return Retriable
+		// //windows
+		// case windows.WSAECONNREFUSED,
+		// 	windows.WSAECONNRESET,
+		// 	windows.WSAETIMEDOUT:
+		// 	return Retriable
 
 	}
 
