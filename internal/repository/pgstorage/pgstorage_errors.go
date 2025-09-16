@@ -2,9 +2,11 @@ package pgstorage
 
 import (
 	"errors"
+	"syscall"
 
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	"golang.org/x/sys/windows"
 )
 
 type PGErrorClassification int
@@ -31,7 +33,13 @@ func (c *PostgresErrorClassifier) Classify(err error) PGErrorClassification {
 		return СlassifyPgError(pgErr)
 	}
 
+	var reqErr syscall.Errno
+	if errors.As(err, &reqErr) {
+		return classifySyscallError(reqErr)
+	}
+
 	return NonRetriable
+
 }
 
 func СlassifyPgError(pgErr *pgconn.PgError) PGErrorClassification {
@@ -76,6 +84,27 @@ func СlassifyPgError(pgErr *pgconn.PgError) PGErrorClassification {
 		pgerrcode.UndefinedTable,
 		pgerrcode.UndefinedFunction:
 		return NonRetriable
+	}
+
+	return NonRetriable
+}
+
+func classifySyscallError(reqErr syscall.Errno) PGErrorClassification {
+
+	switch reqErr {
+	//unix
+	case syscall.ECONNREFUSED,
+		syscall.ECONNRESET,
+		syscall.ETIMEDOUT,
+		syscall.EAGAIN:
+		return Retriable
+
+	//windows
+	case windows.WSAECONNREFUSED,
+		windows.WSAECONNRESET,
+		windows.WSAETIMEDOUT:
+		return Retriable
+
 	}
 
 	return NonRetriable

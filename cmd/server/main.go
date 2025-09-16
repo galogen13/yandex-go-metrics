@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/galogen13/yandex-go-metrics/internal/config"
@@ -31,7 +32,7 @@ func run() error {
 	var mStorage server.Storage
 
 	if config.UseDatabaseAsStorage {
-		mStorage, err = pgstorage.NewPGStorage(config.DatabaseDSN)
+		mStorage, err = pgstorage.NewPGStorage(context.Background(), config.DatabaseDSN)
 		if err != nil {
 			return err
 		}
