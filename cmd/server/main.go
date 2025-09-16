@@ -5,7 +5,8 @@ import (
 
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
-	storage "github.com/galogen13/yandex-go-metrics/internal/repository"
+	memstorage "github.com/galogen13/yandex-go-metrics/internal/repository/memstorage"
+	pgstorage "github.com/galogen13/yandex-go-metrics/internal/repository/pgstorage"
 	"github.com/galogen13/yandex-go-metrics/internal/service/server"
 )
 
@@ -30,12 +31,12 @@ func run() error {
 	var mStorage server.Storage
 
 	if config.UseDatabaseAsStorage {
-		mStorage, err = storage.NewPGStorage(config.DatabaseDSN)
+		mStorage, err = pgstorage.NewPGStorage(config.DatabaseDSN)
 		if err != nil {
 			return err
 		}
 	} else {
-		mStorage = storage.NewMemStorage()
+		mStorage = memstorage.NewMemStorage()
 	}
 	defer mStorage.Close()
 

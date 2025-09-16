@@ -1,4 +1,4 @@
-package storage
+package pgstorage
 
 import (
 	"context"
@@ -19,7 +19,29 @@ type PGStorage struct {
 	db *sql.DB
 }
 
-func NewPGStorage(ps string) (*PGStorage, error) {
+func NewPGStorage(ctx context.Context, ps string) (*PGStorage, error) {
+
+	// config, err := pgxpool.ParseConfig(ps)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to parse config: %w", err)
+	// }
+
+	// config.MaxConns = 5 // Максимум соединений
+	// config.MinConns = 1 // Минимум соединений
+	// config.MaxConnLifetime = 30 * time.Minute
+	// config.MaxConnIdleTime = 5 * time.Minute
+	// config.HealthCheckPeriod = 1 * time.Minute
+
+	// // Создаем пул
+	// pool, err := pgxpool.NewWithConfig(ctx, config)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create pool: %w", err)
+	// }
+
+	// // Проверяем соединение
+	// if err := pool.Ping(ctx); err != nil {
+	// 	return nil, fmt.Errorf("failed to ping database: %w", err)
+	// }
 
 	db, err := sql.Open("pgx", ps)
 	if err != nil {

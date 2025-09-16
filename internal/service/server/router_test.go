@@ -14,7 +14,7 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
-	storage "github.com/galogen13/yandex-go-metrics/internal/repository"
+	storage "github.com/galogen13/yandex-go-metrics/internal/repository/memstorage"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
