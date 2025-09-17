@@ -251,7 +251,7 @@ func (storage *PGStorage) getNoRetry(ctx context.Context, metric *metrics.Metric
 	qMetric := metrics.Metric{}
 	err := row.Scan(&qMetric.ID, &qMetric.MType, &value, &delta)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil, nil
 		}
 		return false, nil, fmt.Errorf("failed to scan query result Get: %w", err)
