@@ -29,10 +29,10 @@ func GetServerConfig() (*ServerConfig, error) {
 
 	hostAddressFlag := flag.String("a", "localhost:8080", "host address")
 	logLevelFlag := flag.String("l", "info", "log level")
-	StoreIntervalFlag := flag.Int("i", 300, "store to file interval, seconds")
-	FileStoragePathFlag := flag.String("f", "./metricsstorage", "file storage path")
-	DatabaseDSNFlag := flag.String("d", "", "file storage path")
-	RestoreFlag := flag.Bool("r", false, "restore storage from file")
+	storeIntervalFlag := flag.Int("i", 300, "store to file interval, seconds")
+	fileStoragePathFlag := flag.String("f", "./metricsstorage", "file storage path")
+	databaseDSNFlag := flag.String("d", "", "file storage path")
+	restoreFlag := flag.Bool("r", false, "restore storage from file")
 	flag.Parse()
 
 	if cfg.Host == "" {
@@ -44,19 +44,19 @@ func GetServerConfig() (*ServerConfig, error) {
 	}
 
 	if cfg.StoreInterval == nil {
-		cfg.StoreInterval = StoreIntervalFlag
+		cfg.StoreInterval = storeIntervalFlag
 	}
 
 	if cfg.FileStoragePath == "" {
-		cfg.FileStoragePath = *FileStoragePathFlag
+		cfg.FileStoragePath = *fileStoragePathFlag
 	}
 
 	if cfg.RestoreStorage == nil {
-		cfg.RestoreStorage = RestoreFlag
+		cfg.RestoreStorage = restoreFlag
 	}
 
 	if cfg.DatabaseDSN == "" {
-		cfg.DatabaseDSN = *DatabaseDSNFlag
+		cfg.DatabaseDSN = *databaseDSNFlag
 	}
 
 	cfg.UseDatabaseAsStorage = (cfg.DatabaseDSN != "")

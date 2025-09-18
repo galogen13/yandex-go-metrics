@@ -52,7 +52,6 @@ func (serverService *ServerService) Start() error {
 		zap.String("logLevel", serverService.Config.LogLevel),
 		zap.Int("storeInterval", *serverService.Config.StoreInterval),
 		zap.String("file storage path", serverService.Config.FileStoragePath),
-		zap.String("database DSN", serverService.Config.DatabaseDSN),
 		zap.Bool("restore storage", *serverService.Config.RestoreStorage),
 		zap.Bool("use database as storage", serverService.Config.UseDatabaseAsStorage),
 		zap.Bool("store on update", serverService.Config.StoreOnUpdate),

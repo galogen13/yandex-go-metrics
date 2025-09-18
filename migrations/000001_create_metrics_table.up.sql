@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TABLE metrics
 (
     id character varying(128) NOT NULL,
@@ -8,3 +10,5 @@ CREATE TABLE metrics
 );
 
 CREATE INDEX idx_metrics_id_mtype ON metrics(id, mtype);
+
+COMMIT;

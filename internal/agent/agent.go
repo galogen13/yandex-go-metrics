@@ -310,7 +310,7 @@ func sendMetricsViaPathParams(client *resty.Client, host string, metric *metrics
 
 func sendMetricWithJSONBody(client *resty.Client, host string, metric *metrics.Metric) error {
 
-	logger.Log.Info("prepairing to send metric",
+	logger.Log.Debug("prepairing to send metric",
 		zap.String("ID", metric.ID),
 		zap.String("MType", metric.MType),
 		zap.Any("value", metric.GetValue()),
@@ -352,7 +352,7 @@ func sendMetricWithJSONBody(client *resty.Client, host string, metric *metrics.M
 
 func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*metrics.Metric) error {
 
-	logger.Log.Info("prepairing to send metrics batch",
+	logger.Log.Debug("prepairing to send metrics batch",
 		zap.Any("metrics", metrics),
 	)
 
