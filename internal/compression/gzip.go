@@ -1,7 +1,9 @@
 package compression
 
 import (
+	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -55,7 +57,7 @@ type compressReader struct {
 	zr *gzip.Reader
 }
 
-func NewCompressReader(r io.ReadCloser) (*compressReader, error) {
+func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	zr, err := gzip.NewReader(r)
 	if err != nil {
 		return nil, err
@@ -84,7 +86,7 @@ func GzipMiddleware(h http.HandlerFunc) http.HandlerFunc {
 		contentEncoding := r.Header.Get("Content-Encoding")
 		sendsGzip := strings.Contains(contentEncoding, "gzip")
 		if sendsGzip {
-			cr, err := NewCompressReader(r.Body)
+			cr, err := newCompressReader(r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -105,4 +107,20 @@ func GzipMiddleware(h http.HandlerFunc) http.HandlerFunc {
 		h.ServeHTTP(ow, r)
 
 	}
+}
+
+func GzipCompress(bodyBytes []byte) (*bytes.Buffer, error) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+
+	_, err := gz.Write(bodyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("error while compressing metric: %w", err)
+	}
+
+	err = gz.Close()
+	if err != nil {
+		return nil, fmt.Errorf("error while close compressing metric: %w", err)
+	}
+	return &buf, nil
 }

@@ -27,21 +27,21 @@ type Metric struct {
 	MType string   `json:"type"`
 	Delta *int64   `json:"delta,omitempty"`
 	Value *float64 `json:"value,omitempty"`
-	Hash  string   `json:"-"` //`json:"hash,omitempty"`
+	Hash  string   `json:"-"` // `json:"hash,omitempty"`
 }
 
-func NewMetrics(ID string, MType string) *Metric {
+func NewMetrics(id string, mType string) *Metric {
 	metric := Metric{}
-	metric.ID = ID
-	metric.MType = MType
+	metric.ID = id
+	metric.MType = mType
 
 	return &metric
 }
 
-func (metric *Metric) UpdateValue(Value any) error {
+func (metric *Metric) UpdateValue(value any) error {
 	switch metric.MType {
 	case Gauge:
-		metricValue, err := gaugeValue(Value)
+		metricValue, err := gaugeValue(value)
 		if err != nil {
 			return fmt.Errorf("error converting gauge value: %w", err)
 		}
@@ -51,7 +51,7 @@ func (metric *Metric) UpdateValue(Value any) error {
 			*metric.Value = metricValue
 		}
 	case Counter:
-		metricsValue, err := counterValue(Value)
+		metricsValue, err := counterValue(value)
 		if err != nil {
 			return fmt.Errorf("error converting counter value: %w", err)
 		}
@@ -98,6 +98,17 @@ func GetMetricsValues(metricsList []*Metric) map[string]any {
 	return result
 }
 
+func GetMetricsFromMap(metrics map[string]*Metric) []*Metric {
+
+	result := make([]*Metric, 0, len(metrics))
+
+	for _, metric := range metrics {
+		result = append(result, metric)
+	}
+
+	return result
+}
+
 func (metric Metric) Check(checkValue bool) error {
 	metricIDIsCorrect := metric.checkID()
 	if !metricIDIsCorrect {
@@ -116,25 +127,25 @@ func (metric Metric) Check(checkValue bool) error {
 	return nil
 }
 
-func (metric Metric) CompareTypes(MType string) error {
-	if metric.MType != MType {
-		return fmt.Errorf("%w: metric type does not match incoming metric type. expected: %s, have: %s", ErrMetricValidation, metric.MType, MType)
+func (metric Metric) CompareTypes(mType string) error {
+	if metric.MType != mType {
+		return fmt.Errorf("%w: metric type does not match incoming metric type. expected: %s, have: %s", ErrMetricValidation, metric.MType, mType)
 	}
 	return nil
 }
 
-func gaugeValue(Value any) (float64, error) {
-	metricsValue, ok := Value.(float64)
+func gaugeValue(value any) (float64, error) {
+	metricsValue, ok := value.(float64)
 	if !ok {
-		return 0, fmt.Errorf("value conversion error to float64: %v", Value)
+		return 0, fmt.Errorf("value conversion error to float64: %v", value)
 	}
 	return metricsValue, nil
 }
 
-func counterValue(Value any) (int64, error) {
-	metricsValue, ok := Value.(int64)
+func counterValue(value any) (int64, error) {
+	metricsValue, ok := value.(int64)
 	if !ok {
-		return 0, fmt.Errorf("value conversion error to int64: %v", Value)
+		return 0, fmt.Errorf("value conversion error to int64: %v", value)
 	}
 	return metricsValue, nil
 }

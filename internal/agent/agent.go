@@ -1,8 +1,6 @@
 package agent
 
 import (
-	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -12,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
@@ -31,7 +30,7 @@ type Agent struct {
 	PollCount int64
 }
 
-func (agent Agent) metricIsPollCounter(name string) bool {
+func (agent *Agent) metricIsPollCounter(name string) bool {
 	return name == pollCounterName
 }
 
@@ -249,25 +248,35 @@ func (agent *Agent) sendMetrics() {
 
 	client := resty.New()
 	client.SetRedirectPolicy(resty.RedirectPolicyFunc(
-		func(req *http.Request, via []*http.Request) error {
+		func(req *http.Request, _ []*http.Request) error {
 			req.Method = http.MethodPost
 			return nil
 		}))
 
-	for _, metric := range agent.metrics {
-		var err error
-		switch agent.config.APIFormat {
-		case config.APIFormatJSON:
-			err = sendMetricsWithJSONBody(client, agent.config.Host, metric)
-		case config.APIFormatURL:
-			err = sendMetricsViaPathParams(client, agent.config.Host, metric)
-		}
+	if agent.config.APIFormat == config.APIFormatJSONBatch {
+		err := sendMetricsBatchWithJSONBody(client, agent.config.Host, agent.metrics)
+
 		if err != nil {
-			logger.Log.Error("error when send metric", zap.Error(err))
-			continue
+			logger.Log.Error("error sending metrics batch", zap.Error(err))
+			return
 		}
-		if agent.metricIsPollCounter(metric.ID) {
-			agent.resetPollCounter()
+		agent.resetPollCounter()
+	} else {
+		for _, metric := range agent.metrics {
+			var err error
+			switch agent.config.APIFormat {
+			case config.APIFormatJSON:
+				err = sendMetricWithJSONBody(client, agent.config.Host, metric)
+			case config.APIFormatURL:
+				err = sendMetricsViaPathParams(client, agent.config.Host, metric)
+			}
+			if err != nil {
+				logger.Log.Error("error when send metric", zap.Error(err))
+				continue
+			}
+			if agent.metricIsPollCounter(metric.ID) {
+				agent.resetPollCounter()
+			}
 		}
 	}
 
@@ -298,9 +307,9 @@ func sendMetricsViaPathParams(client *resty.Client, host string, metric *metrics
 
 }
 
-func sendMetricsWithJSONBody(client *resty.Client, host string, metric *metrics.Metric) error {
+func sendMetricWithJSONBody(client *resty.Client, host string, metric *metrics.Metric) error {
 
-	logger.Log.Info("prepairing to send metric",
+	logger.Log.Debug("prepairing to send metric",
 		zap.String("ID", metric.ID),
 		zap.String("MType", metric.MType),
 		zap.Any("value", metric.GetValue()),
@@ -311,17 +320,9 @@ func sendMetricsWithJSONBody(client *resty.Client, host string, metric *metrics.
 		return fmt.Errorf("error while marshalling metric with ID %s: %w", metric.ID, err)
 	}
 
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-
-	_, err = gz.Write(bodyBytes)
+	buf, err := compression.GzipCompress(bodyBytes)
 	if err != nil {
-		return fmt.Errorf("error while compressing metric with ID %s: %w", metric.ID, err)
-	}
-
-	err = gz.Close()
-	if err != nil {
-		return fmt.Errorf("error while close compressing metric with ID %s: %w", metric.ID, err)
+		return fmt.Errorf("error while gzip compress metric with ID %s: %w", metric.ID, err)
 	}
 
 	baseURL := &url.URL{
@@ -342,6 +343,74 @@ func sendMetricsWithJSONBody(client *resty.Client, host string, metric *metrics.
 
 	if resp.StatusCode() != http.StatusOK {
 		return fmt.Errorf("unexpected code while executing request with JSON body to url %s: %d", fullURL, resp.StatusCode())
+	}
+
+	return nil
+
+}
+
+func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*metrics.Metric) error {
+
+	logger.Log.Debug("prepairing to send metrics batch",
+		zap.Any("metrics", metrics),
+	)
+
+	bodyBytes, err := json.Marshal(metrics)
+	if err != nil {
+		return fmt.Errorf("error while marshalling metrics: %w", err)
+	}
+
+	buf, err := compression.GzipCompress(bodyBytes)
+	if err != nil {
+		return fmt.Errorf("error while gzip compress metrics: %w", err)
+	}
+
+	req := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(buf.Bytes())
+
+	baseURL := &url.URL{
+		Scheme: "http",
+		Host:   host,
+		Path:   "updates",
+	}
+	fullURL := baseURL.String()
+
+	resp, err := req.Post(fullURL)
+	logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
+
+	maxAttepmts := 3
+	firstDelay := 1
+
+	classifier := NewAgentErrorClassifier()
+
+	for attempt := 0; attempt < maxAttepmts; attempt++ {
+		classification := classifier.Classify(err, resp.StatusCode())
+		switch classification {
+		case Success:
+			logger.Log.Info("metrics sent successfully", zap.String("Method", req.Method), zap.String("URL", fullURL))
+			return nil
+		case Retriable:
+			delay := firstDelay + attempt*2
+			logger.Log.Info("retryable error, sending metrics delayed",
+				zap.Int("delay", delay),
+				zap.Error(err),
+				zap.Int("status code", resp.StatusCode()),
+			)
+			time.Sleep(time.Duration(delay) * time.Second)
+			resp, err = req.Post(fullURL)
+			logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
+		case NonRetriable:
+			return fmt.Errorf("non retriable error when sending POST request with JSON body to url %s: err: %w, status code : %d", fullURL, err, resp.StatusCode())
+		}
+	}
+
+	classification := classifier.Classify(err, resp.StatusCode())
+	if classification == Success {
+		logger.Log.Info("metrics sent successfully", zap.String("Method", req.Method), zap.String("URL", fullURL))
+	} else {
+		return fmt.Errorf("operation aborted after %d attempts: err: %w, status code: %d", maxAttepmts, err, resp.StatusCode())
 	}
 
 	return nil
