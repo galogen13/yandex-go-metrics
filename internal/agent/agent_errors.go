@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 	"syscall"
+
+	"github.com/galogen13/yandex-go-metrics/internal/classification"
 )
 
 type AgentErrorClassification int
@@ -47,20 +49,8 @@ func (c *AgentErrorClassifier) classifyError(err error) AgentErrorClassification
 
 func classifySyscallError(reqErr syscall.Errno) AgentErrorClassification {
 
-	switch reqErr {
-	//unix
-	case syscall.ECONNREFUSED,
-		syscall.ECONNRESET,
-		syscall.ETIMEDOUT,
-		syscall.EAGAIN:
+	if classification.IsRetriableSyscallError(reqErr) {
 		return Retriable
-
-		// //windows
-		// case windows.WSAECONNREFUSED,
-		// 	windows.WSAECONNRESET,
-		// 	windows.WSAETIMEDOUT:
-		// 	return Retriable
-
 	}
 
 	return NonRetriable

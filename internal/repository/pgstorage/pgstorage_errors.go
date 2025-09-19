@@ -4,6 +4,7 @@ import (
 	"errors"
 	"syscall"
 
+	"github.com/galogen13/yandex-go-metrics/internal/classification"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -90,20 +91,8 @@ func СlassifyPgError(pgErr *pgconn.PgError) PGErrorClassification {
 
 func classifySyscallError(reqErr syscall.Errno) PGErrorClassification {
 
-	switch reqErr {
-	//unix
-	case syscall.ECONNREFUSED,
-		syscall.ECONNRESET,
-		syscall.ETIMEDOUT,
-		syscall.EAGAIN:
+	if classification.IsRetriableSyscallError(reqErr) {
 		return Retriable
-
-		// //windows
-		// case windows.WSAECONNREFUSED,
-		// 	windows.WSAECONNRESET,
-		// 	windows.WSAETIMEDOUT:
-		// 	return Retriable
-
 	}
 
 	return NonRetriable

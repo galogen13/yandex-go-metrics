@@ -1,8 +1,6 @@
 package agent
 
 import (
-	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -12,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
@@ -321,7 +320,7 @@ func sendMetricWithJSONBody(client *resty.Client, host string, metric *metrics.M
 		return fmt.Errorf("error while marshalling metric with ID %s: %w", metric.ID, err)
 	}
 
-	buf, err := gzipCompress(bodyBytes)
+	buf, err := compression.GzipCompress(bodyBytes)
 	if err != nil {
 		return fmt.Errorf("error while gzip compress metric with ID %s: %w", metric.ID, err)
 	}
@@ -361,10 +360,15 @@ func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*
 		return fmt.Errorf("error while marshalling metrics: %w", err)
 	}
 
-	buf, err := gzipCompress(bodyBytes)
+	buf, err := compression.GzipCompress(bodyBytes)
 	if err != nil {
 		return fmt.Errorf("error while gzip compress metrics: %w", err)
 	}
+
+	req := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(buf.Bytes())
 
 	baseURL := &url.URL{
 		Scheme: "http",
@@ -372,11 +376,6 @@ func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*
 		Path:   "updates",
 	}
 	fullURL := baseURL.String()
-
-	req := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("Content-Encoding", "gzip").
-		SetBody(buf.Bytes())
 
 	resp, err := req.Post(fullURL)
 	logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
@@ -416,20 +415,4 @@ func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*
 
 	return nil
 
-}
-
-func gzipCompress(bodyBytes []byte) (bytes.Buffer, error) {
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-
-	_, err := gz.Write(bodyBytes)
-	if err != nil {
-		return bytes.Buffer{}, fmt.Errorf("error while compressing metric: %w", err)
-	}
-
-	err = gz.Close()
-	if err != nil {
-		return bytes.Buffer{}, fmt.Errorf("error while close compressing metric: %w", err)
-	}
-	return buf, nil
 }
