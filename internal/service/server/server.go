@@ -17,7 +17,7 @@ import (
 type Storage interface {
 	Update(ctx context.Context, metrics []*metrics.Metric) error
 	Insert(ctx context.Context, metrics []*metrics.Metric) error
-	Get(ctx context.Context, metric *metrics.Metric) (bool, *metrics.Metric, error)
+	Get(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error)
 	GetByIDs(ctx context.Context, IDs []string) (map[string]*metrics.Metric, error)
 	GetAll(ctx context.Context) ([]*metrics.Metric, error)
 	Ping(ctx context.Context) error
@@ -144,11 +144,11 @@ func (serverService *ServerService) GetMetric(ctx context.Context, incomingMetri
 		return nil, errGettingMetrics(err)
 	}
 
-	ok, metric, err := serverService.Storage.Get(ctx, incomingMetric)
+	metric, err := serverService.Storage.Get(ctx, incomingMetric)
 	if err != nil {
 		return nil, errGettingMetrics(err)
 	}
-	if !ok {
+	if metric == nil {
 		return nil, fmt.Errorf("%w: ID: %s, mType: %s", metrics.ErrMetricNotFound, incomingMetric.ID, incomingMetric.MType)
 	}
 

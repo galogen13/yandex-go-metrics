@@ -40,14 +40,14 @@ func (storage *MemStorage) Update(ctx context.Context, metrics []*metrics.Metric
 	return nil
 }
 
-func (storage *MemStorage) Get(ctx context.Context, incomingMetric *metrics.Metric) (bool, *metrics.Metric, error) {
+func (storage *MemStorage) Get(ctx context.Context, incomingMetric *metrics.Metric) (*metrics.Metric, error) {
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 	metric, ok := storage.Metrics[incomingMetric.ID]
 	if !ok || metric.MType != incomingMetric.MType {
-		return false, nil, nil
+		return nil, nil
 	}
-	return ok, metric, nil
+	return metric, nil
 }
 
 func (storage *MemStorage) GetByIDs(ctx context.Context, IDs []string) (map[string]*metrics.Metric, error) {

@@ -5,16 +5,9 @@ import (
 	"syscall"
 
 	"github.com/galogen13/yandex-go-metrics/internal/classification"
+	"github.com/galogen13/yandex-go-metrics/internal/retry"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
-)
-
-type PGErrorClassification int
-
-const (
-	NonRetriable PGErrorClassification = iota
-
-	Retriable
 )
 
 type PostgresErrorClassifier struct{}
@@ -23,9 +16,9 @@ func NewPostgresErrorClassifier() *PostgresErrorClassifier {
 	return &PostgresErrorClassifier{}
 }
 
-func (c *PostgresErrorClassifier) Classify(err error) PGErrorClassification {
+func (c *PostgresErrorClassifier) Classify(err error) retry.ErrorClassification {
 	if err == nil {
-		return NonRetriable
+		return retry.NonRetriable
 	}
 
 	var pgErr *pgconn.PgError
@@ -38,35 +31,35 @@ func (c *PostgresErrorClassifier) Classify(err error) PGErrorClassification {
 		return classifySyscallError(reqErr)
 	}
 
-	return NonRetriable
+	return retry.NonRetriable
 
 }
 
-func СlassifyPgError(pgErr *pgconn.PgError) PGErrorClassification {
+func СlassifyPgError(pgErr *pgconn.PgError) retry.ErrorClassification {
 
 	switch pgErr.Code {
 	// Класс 08 - Ошибки соединения
 	case pgerrcode.ConnectionException,
 		pgerrcode.ConnectionDoesNotExist,
 		pgerrcode.ConnectionFailure:
-		return Retriable
+		return retry.Retriable
 
 	// Класс 40 - Откат транзакции
 	case pgerrcode.TransactionRollback, // 40000
 		pgerrcode.SerializationFailure, // 40001
 		pgerrcode.DeadlockDetected:     // 40P01
-		return Retriable
+		return retry.Retriable
 
 	// Класс 57 - Ошибка оператора
 	case pgerrcode.CannotConnectNow: // 57P03
-		return Retriable
+		return retry.Retriable
 	}
 
 	switch pgErr.Code {
 	// Класс 22 - Ошибки данных
 	case pgerrcode.DataException,
 		pgerrcode.NullValueNotAllowedDataException:
-		return NonRetriable
+		return retry.NonRetriable
 
 	// Класс 23 - Нарушение ограничений целостности
 	case pgerrcode.IntegrityConstraintViolation,
@@ -75,7 +68,7 @@ func СlassifyPgError(pgErr *pgconn.PgError) PGErrorClassification {
 		pgerrcode.ForeignKeyViolation,
 		pgerrcode.UniqueViolation,
 		pgerrcode.CheckViolation:
-		return NonRetriable
+		return retry.NonRetriable
 
 	// Класс 42 - Синтаксические ошибки
 	case pgerrcode.SyntaxErrorOrAccessRuleViolation,
@@ -83,17 +76,17 @@ func СlassifyPgError(pgErr *pgconn.PgError) PGErrorClassification {
 		pgerrcode.UndefinedColumn,
 		pgerrcode.UndefinedTable,
 		pgerrcode.UndefinedFunction:
-		return NonRetriable
+		return retry.NonRetriable
 	}
 
-	return NonRetriable
+	return retry.NonRetriable
 }
 
-func classifySyscallError(reqErr syscall.Errno) PGErrorClassification {
+func classifySyscallError(reqErr syscall.Errno) retry.ErrorClassification {
 
 	if classification.IsRetriableSyscallError(reqErr) {
-		return Retriable
+		return retry.Retriable
 	}
 
-	return NonRetriable
+	return retry.NonRetriable
 }
