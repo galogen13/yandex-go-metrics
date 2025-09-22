@@ -2,18 +2,10 @@ package agent
 
 import (
 	"errors"
-	"net/http"
 	"syscall"
 
 	"github.com/galogen13/yandex-go-metrics/internal/classification"
-)
-
-type AgentErrorClassification int
-
-const (
-	NonRetriable AgentErrorClassification = iota
-	Retriable
-	Success
+	"github.com/galogen13/yandex-go-metrics/internal/retry"
 )
 
 type AgentErrorClassifier struct{}
@@ -22,21 +14,9 @@ func NewAgentErrorClassifier() *AgentErrorClassifier {
 	return &AgentErrorClassifier{}
 }
 
-func (c *AgentErrorClassifier) Classify(err error, statusCode int) (classification AgentErrorClassification) {
-	if err != nil {
-		return c.classifyError(err)
-	}
-
-	if statusCode != http.StatusOK {
-		return c.classifyStatusCode(statusCode)
-	}
-
-	return Success
-}
-
-func (c *AgentErrorClassifier) classifyError(err error) AgentErrorClassification {
+func (c *AgentErrorClassifier) Classify(err error) retry.ErrorClassification {
 	if err == nil {
-		return NonRetriable
+		return retry.NonRetriable
 	}
 
 	var reqErr syscall.Errno
@@ -44,26 +24,14 @@ func (c *AgentErrorClassifier) classifyError(err error) AgentErrorClassification
 		return classifySyscallError(reqErr)
 	}
 
-	return NonRetriable
+	return retry.NonRetriable
 }
 
-func classifySyscallError(reqErr syscall.Errno) AgentErrorClassification {
+func classifySyscallError(reqErr syscall.Errno) retry.ErrorClassification {
 
 	if classification.IsRetriableSyscallError(reqErr) {
-		return Retriable
+		return retry.Retriable
 	}
 
-	return NonRetriable
-}
-
-func (c *AgentErrorClassifier) classifyStatusCode(statusCode int) AgentErrorClassification {
-
-	if statusCode >= http.StatusInternalServerError ||
-		statusCode == http.StatusTooManyRequests ||
-		statusCode == http.StatusRequestTimeout {
-		return Retriable
-	}
-
-	return NonRetriable
-
+	return retry.NonRetriable
 }

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -13,6 +14,7 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
+	"github.com/galogen13/yandex-go-metrics/internal/retry"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 	"go.uber.org/zap"
 
@@ -377,42 +379,59 @@ func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*
 	}
 	fullURL := baseURL.String()
 
-	resp, err := req.Post(fullURL)
-	logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
+	resp, err := retry.DoWithResult(
+		context.Background(),
+		func() (*resty.Response, error) {
+			return req.Post(fullURL)
+		},
+		NewAgentErrorClassifier())
 
-	maxAttepmts := 3
-	firstDelay := 1
-
-	classifier := NewAgentErrorClassifier()
-
-	for attempt := 0; attempt < maxAttepmts; attempt++ {
-		classification := classifier.Classify(err, resp.StatusCode())
-		switch classification {
-		case Success:
-			logger.Log.Info("metrics sent successfully", zap.String("Method", req.Method), zap.String("URL", fullURL))
-			return nil
-		case Retriable:
-			delay := firstDelay + attempt*2
-			logger.Log.Info("retryable error, sending metrics delayed",
-				zap.Int("delay", delay),
-				zap.Error(err),
-				zap.Int("status code", resp.StatusCode()),
-			)
-			time.Sleep(time.Duration(delay) * time.Second)
-			resp, err = req.Post(fullURL)
-			logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
-		case NonRetriable:
-			return fmt.Errorf("non retriable error when sending POST request with JSON body to url %s: err: %w, status code : %d", fullURL, err, resp.StatusCode())
-		}
+	if err != nil {
+		return err
 	}
 
-	classification := classifier.Classify(err, resp.StatusCode())
-	if classification == Success {
-		logger.Log.Info("metrics sent successfully", zap.String("Method", req.Method), zap.String("URL", fullURL))
-	} else {
-		return fmt.Errorf("operation aborted after %d attempts: err: %w, status code: %d", maxAttepmts, err, resp.StatusCode())
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode())
 	}
 
 	return nil
+
+	// resp, err := req.Post(fullURL)
+	// logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
+
+	// maxAttepmts := 3
+	// firstDelay := 1
+
+	// classifier := NewAgentErrorClassifier()
+
+	// for attempt := 0; attempt < maxAttepmts; attempt++ {
+	// 	classification := classifier.Classify(err, resp.StatusCode())
+	// 	switch classification {
+	// 	case Success:
+	// 		logger.Log.Info("metrics sent successfully", zap.String("Method", req.Method), zap.String("URL", fullURL))
+	// 		return nil
+	// 	case Retriable:
+	// 		delay := firstDelay + attempt*2
+	// 		logger.Log.Info("retryable error, sending metrics delayed",
+	// 			zap.Int("delay", delay),
+	// 			zap.Error(err),
+	// 			zap.Int("status code", resp.StatusCode()),
+	// 		)
+	// 		time.Sleep(time.Duration(delay) * time.Second)
+	// 		resp, err = req.Post(fullURL)
+	// 		logger.Log.Info("sending metrics", zap.String("Method", req.Method), zap.String("URL", fullURL))
+	// 	case NonRetriable:
+	// 		return fmt.Errorf("non retriable error when sending POST request with JSON body to url %s: err: %w, status code : %d", fullURL, err, resp.StatusCode())
+	// 	}
+	// }
+
+	// classification := classifier.Classify(err, resp.StatusCode())
+	// if classification == Success {
+	// 	logger.Log.Info("metrics sent successfully", zap.String("Method", req.Method), zap.String("URL", fullURL))
+	// } else {
+	// 	return fmt.Errorf("operation aborted after %d attempts: err: %w, status code: %d", maxAttepmts, err, resp.StatusCode())
+	// }
+
+	// return nil
 
 }

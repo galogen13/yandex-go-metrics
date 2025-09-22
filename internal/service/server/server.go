@@ -200,10 +200,10 @@ func (serverService *ServerService) restoreStorageFromFile(ctx context.Context, 
 		return fmt.Errorf("fileStoragePath is not filled")
 	}
 
-	if _, err := os.Stat(fileStoragePath); os.IsNotExist(err) {
-		logger.Log.Info("storage not exists", zap.String("fileStoragePath", fileStoragePath))
-		return nil
-	}
+	// if _, err := os.Stat(fileStoragePath); os.IsNotExist(err) {
+	// 	logger.Log.Info("storage not exists", zap.String("fileStoragePath", fileStoragePath))
+	// 	return nil
+	// }
 
 	file, err := os.Open(fileStoragePath)
 	if err != nil {
