@@ -1,0 +1,46 @@
+run:
+  timeout: 5m
+
+linters:
+  disable-all: true
+  enable:
+    # Основные
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+    - typecheck
+    
+    # Стиль
+    - gofmt
+    - goimports
+    - gocyclo
+    - gocritic
+    - revive
+    
+    # Безопасность
+    - gosec
+    
+    # Производительность и HTTP
+    - prealloc
+    - bodyclose      # ← Проверяет закрытие response.Body
+    - noctx          # ← Проверяет context в HTTP запросах
+    - contextcheck   # ← Проверяет использование context
+    
+    # Ошибки
+    - errorlint
+    
+    # SQL
+    - rowserrcheck
+    - sqlclosecheck
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental

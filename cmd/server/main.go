@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
-	storage "github.com/galogen13/yandex-go-metrics/internal/repository"
+	memstorage "github.com/galogen13/yandex-go-metrics/internal/repository/memstorage"
+	pgstorage "github.com/galogen13/yandex-go-metrics/internal/repository/pgstorage"
 	"github.com/galogen13/yandex-go-metrics/internal/service/server"
 )
 
@@ -27,8 +29,19 @@ func run() error {
 	}
 	defer logger.Log.Sync()
 
-	storage := storage.NewMemStorage()
-	serverService := server.NewServerService(config, storage)
+	var mStorage server.Storage
+
+	if config.UseDatabaseAsStorage {
+		mStorage, err = pgstorage.NewPGStorage(context.Background(), config.DatabaseDSN)
+		if err != nil {
+			return err
+		}
+	} else {
+		mStorage = memstorage.NewMemStorage()
+	}
+	defer mStorage.Close()
+
+	serverService := server.NewServerService(config, mStorage)
 
 	if err := serverService.Start(); err != nil {
 		return err
