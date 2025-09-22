@@ -72,33 +72,6 @@ func (storage *PGStorage) Insert(ctx context.Context, metricsInsert []*metrics.M
 		},
 		NewPostgresErrorClassifier())
 
-	// err := storage.insertNoRetry(ctx, metricsInsert)
-	// if err == nil {
-	// 	return nil
-	// }
-
-	// classifier := NewPostgresErrorClassifier()
-	// for attempt := 0; attempt < maxAttepmts; attempt++ {
-	// 	classification := classifier.Classify(err)
-	// 	switch classification {
-	// 	case Retriable:
-	// 		delay := firstDelay + attempt*2
-	// 		logger.Log.Info("retryable error, Insert delayed",
-	// 			zap.Int("delay", delay),
-	// 			zap.Error(err),
-	// 		)
-	// 		time.Sleep(time.Duration(delay) * time.Second)
-	// 		err = storage.insertNoRetry(ctx, metricsInsert)
-	// 	case NonRetriable:
-	// 		return fmt.Errorf("non retriable error Insert: %w", err)
-	// 	}
-	// }
-
-	// if err != nil {
-	// 	return fmt.Errorf("Insert aborted after %d attempts: err: %w", maxAttepmts, err)
-	// }
-
-	// return nil
 }
 
 func (storage *PGStorage) insertNoRetry(ctx context.Context, metricsInsert []*metrics.Metric) error {
@@ -149,33 +122,6 @@ func (storage *PGStorage) Update(ctx context.Context, metricsUpdate []*metrics.M
 		},
 		NewPostgresErrorClassifier())
 
-	// err := storage.updateNoRetry(ctx, metricsUpdate)
-	// if err == nil {
-	// 	return nil
-	// }
-
-	// classifier := NewPostgresErrorClassifier()
-	// for attempt := 0; attempt < maxAttepmts; attempt++ {
-	// 	classification := classifier.Classify(err)
-	// 	switch classification {
-	// 	case Retriable:
-	// 		delay := firstDelay + attempt*2
-	// 		logger.Log.Info("retryable error, Update delayed",
-	// 			zap.Int("delay", delay),
-	// 			zap.Error(err),
-	// 		)
-	// 		time.Sleep(time.Duration(delay) * time.Second)
-	// 		err = storage.updateNoRetry(ctx, metricsUpdate)
-	// 	case NonRetriable:
-	// 		return fmt.Errorf("non retriable error Update: %w", err)
-	// 	}
-	// }
-
-	// if err != nil {
-	// 	return fmt.Errorf("Update aborted after %d attempts: err: %w", maxAttepmts, err)
-	// }
-
-	// return nil
 }
 
 func (storage *PGStorage) updateNoRetry(ctx context.Context, metricsUpdate []*metrics.Metric) error {
@@ -227,33 +173,6 @@ func (storage *PGStorage) Get(ctx context.Context, metric *metrics.Metric) (*met
 		},
 		NewPostgresErrorClassifier())
 
-	// ok, qMetric, err := storage.getNoRetry(ctx, metric)
-	// if err == nil {
-	// 	return ok, qMetric, nil
-	// }
-
-	// classifier := NewPostgresErrorClassifier()
-	// for attempt := 0; attempt < maxAttepmts; attempt++ {
-	// 	classification := classifier.Classify(err)
-	// 	switch classification {
-	// 	case Retriable:
-	// 		delay := firstDelay + attempt*2
-	// 		logger.Log.Info("retryable error, Get delayed",
-	// 			zap.Int("delay", delay),
-	// 			zap.Error(err),
-	// 		)
-	// 		time.Sleep(time.Duration(delay) * time.Second)
-	// 		ok, qMetric, err = storage.getNoRetry(ctx, metric)
-	// 	case NonRetriable:
-	// 		return false, nil, fmt.Errorf("non retriable error Get: %w", err)
-	// 	}
-	// }
-
-	// if err != nil {
-	// 	return false, nil, fmt.Errorf("Get aborted after %d attempts: err: %w", maxAttepmts, err)
-	// }
-
-	// return ok, qMetric, nil
 }
 
 func (storage *PGStorage) getNoRetry(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error) {
@@ -292,33 +211,7 @@ func (storage *PGStorage) GetByIDs(ctx context.Context, ids []string) (map[strin
 			return storage.getByIDsNoRetry(ctx, ids)
 		},
 		NewPostgresErrorClassifier())
-	// result, err := storage.getByIDsNoRetry(ctx, ids)
-	// if err == nil {
-	// 	return result, nil
-	// }
 
-	// classifier := NewPostgresErrorClassifier()
-	// for attempt := 0; attempt < maxAttepmts; attempt++ {
-	// 	classification := classifier.Classify(err)
-	// 	switch classification {
-	// 	case Retriable:
-	// 		delay := firstDelay + attempt*2
-	// 		logger.Log.Info("retryable error, GetByIDs delayed",
-	// 			zap.Int("delay", delay),
-	// 			zap.Error(err),
-	// 		)
-	// 		time.Sleep(time.Duration(delay) * time.Second)
-	// 		result, err = storage.getByIDsNoRetry(ctx, ids)
-	// 	case NonRetriable:
-	// 		return nil, fmt.Errorf("non retriable error GetByIDs: %w", err)
-	// 	}
-	// }
-
-	// if err != nil {
-	// 	return nil, fmt.Errorf("GetByIDs aborted after %d attempts: err: %w", maxAttepmts, err)
-	// }
-
-	// return result, nil
 }
 
 func (storage *PGStorage) getByIDsNoRetry(ctx context.Context, ids []string) (map[string]*metrics.Metric, error) {
@@ -371,33 +264,6 @@ func (storage *PGStorage) GetAll(ctx context.Context) ([]*metrics.Metric, error)
 		},
 		NewPostgresErrorClassifier())
 
-	// result, err := storage.getAllNoRetry(ctx)
-	// if err == nil {
-	// 	return result, nil
-	// }
-
-	// classifier := NewPostgresErrorClassifier()
-	// for attempt := 0; attempt < maxAttepmts; attempt++ {
-	// 	classification := classifier.Classify(err)
-	// 	switch classification {
-	// 	case Retriable:
-	// 		delay := firstDelay + attempt*2
-	// 		logger.Log.Info("retryable error, GetAll delayed",
-	// 			zap.Int("delay", delay),
-	// 			zap.Error(err),
-	// 		)
-	// 		time.Sleep(time.Duration(delay) * time.Second)
-	// 		result, err = storage.getAllNoRetry(ctx)
-	// 	case NonRetriable:
-	// 		return nil, fmt.Errorf("non retriable error GetAll: %w", err)
-	// 	}
-	// }
-
-	// if err != nil {
-	// 	return nil, fmt.Errorf("GetAll aborted after %d attempts: err: %w", maxAttepmts, err)
-	// }
-
-	// return result, nil
 }
 
 func (storage *PGStorage) getAllNoRetry(ctx context.Context) ([]*metrics.Metric, error) {
