@@ -7,6 +7,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/galogen13/yandex-go-metrics/internal/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -35,13 +38,13 @@ func (h *hashWriter) Write(p []byte) (int, error) {
 	return h.w.Write(p)
 }
 
-func (c *hashWriter) WriteHeader(statusCode int) {
-	hash := CalculateHMAC(c.body, c.key)
+func (h *hashWriter) WriteHeader(statusCode int) {
+	hash := CalculateHMAC(h.body, h.key)
 	if hash != "" {
-		c.w.Header().Add(hashHeaderKey, hash)
+		h.w.Header().Add(hashHeaderKey, hash)
 	}
 
-	c.w.WriteHeader(statusCode)
+	h.w.WriteHeader(statusCode)
 }
 
 func CalculateHMAC(data []byte, key string) string {
@@ -68,7 +71,10 @@ func HashValidation(key string, next http.Handler) http.HandlerFunc {
 
 			expectedHash := CalculateHMAC(body, key)
 
-			if !hmac.Equal([]byte(receivedHash), []byte(expectedHash)) {
+			hashEquals := hmac.Equal([]byte(receivedHash), []byte(expectedHash))
+			logger.Log.Info("hash check result", zap.Bool("equals", hashEquals), zap.String("key", key))
+
+			if !hashEquals {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}

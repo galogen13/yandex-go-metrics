@@ -396,6 +396,8 @@ func (agent *Agent) sendMetricsBatchWithJSONBody(client *resty.Client) error {
 		return err
 	}
 
+	logger.Log.Info("data sent", zap.String("url", fullURL), zap.Int("respCode", resp.StatusCode()))
+
 	if resp.StatusCode() != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode())
 	}
