@@ -17,9 +17,9 @@ const (
 )
 
 type hashWriter struct {
-	w    http.ResponseWriter
-	body []byte
-	key  string
+	w http.ResponseWriter
+	//body []byte
+	key string
 }
 
 func newHashWriter(w http.ResponseWriter, key string) *hashWriter {
@@ -34,16 +34,15 @@ func (h *hashWriter) Header() http.Header {
 }
 
 func (h *hashWriter) Write(p []byte) (int, error) {
-	h.body = p
+	hash := CalculateHMAC(p, h.key)
+	if hash != "" {
+		h.w.Header().Set(hashHeaderKey, hash)
+	}
+	//h.body = p
 	return h.w.Write(p)
 }
 
 func (h *hashWriter) WriteHeader(statusCode int) {
-	hash := CalculateHMAC(h.body, h.key)
-	if hash != "" {
-		h.w.Header().Add(hashHeaderKey, hash)
-	}
-
 	h.w.WriteHeader(statusCode)
 }
 
