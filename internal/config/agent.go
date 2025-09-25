@@ -36,7 +36,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	hostAddress := flag.String("a", "localhost:8080", "host address")
 	reportInterval := flag.Int("r", 10, "report interval, seconds")
 	pollInterval := flag.Int("p", 2, "poll interval, seconds")
-	key := flag.String("k", "secretkey", "key")
+	key := flag.String("k", "", "secret key")
 	apiFormat := flag.String("f", APIFormatJSONBatch, fmt.Sprintf("API format: %q, %q or %q", APIFormatJSONBatch, APIFormatJSON, APIFormatURL))
 	flag.Parse()
 

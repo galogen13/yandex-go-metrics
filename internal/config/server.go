@@ -34,7 +34,7 @@ func GetServerConfig() (*ServerConfig, error) {
 	fileStoragePathFlag := flag.String("f", "./metricsstorage", "file storage path")
 	databaseDSNFlag := flag.String("d", "", "file storage path")
 	restoreFlag := flag.Bool("r", false, "restore storage from file")
-	key := flag.String("k", "secretkey", "key")
+	key := flag.String("k", "", "secret key")
 	flag.Parse()
 
 	if cfg.Host == "" {
