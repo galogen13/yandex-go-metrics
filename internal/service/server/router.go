@@ -36,8 +36,7 @@ func metricsRouter(server handler.Server) *chi.Mux {
 				compression.GzipMiddleware(
 					handler.UpdateHandler(server)))))
 		r.Post("/{mType}/{metrics}/{value}", logger.RequestLogger(
-			validation.HashValidation(server.Key(),
-				handler.UpdateURLHandler(server))))
+			handler.UpdateURLHandler(server)))
 	})
 
 	r.Route("/updates", func(r chi.Router) {
@@ -49,8 +48,9 @@ func metricsRouter(server handler.Server) *chi.Mux {
 
 	r.Route("/value", func(r chi.Router) {
 		r.Post("/", logger.RequestLogger(
-			compression.GzipMiddleware(
-				handler.GetValueHandler(server))))
+			validation.HashValidation(server.Key(),
+				compression.GzipMiddleware(
+					handler.GetValueHandler(server)))))
 		r.Get("/{mType}/{metrics}", logger.RequestLogger(handler.GetValueURLHandler(server)))
 	})
 

@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -17,33 +18,59 @@ const (
 )
 
 type hashWriter struct {
-	w http.ResponseWriter
-	//body []byte
-	key string
+	w          http.ResponseWriter
+	key        string
+	body       *bytes.Buffer
+	statusCode int
+	headers    http.Header
 }
 
 func newHashWriter(w http.ResponseWriter, key string) *hashWriter {
 	return &hashWriter{
-		w:   w,
-		key: key,
+		w:       w,
+		key:     key,
+		body:    &bytes.Buffer{},
+		headers: w.Header().Clone(),
 	}
 }
 
 func (h *hashWriter) Header() http.Header {
-	return h.w.Header()
+	return h.headers
 }
 
 func (h *hashWriter) Write(p []byte) (int, error) {
-	hash := CalculateHMAC(p, h.key)
-	if hash != "" {
-		h.w.Header().Set(hashHeaderKey, hash)
-	}
-	//h.body = p
-	return h.w.Write(p)
+	return h.body.Write(p)
 }
 
 func (h *hashWriter) WriteHeader(statusCode int) {
-	h.w.WriteHeader(statusCode)
+	h.statusCode = statusCode
+}
+
+func (h *hashWriter) Flush() error {
+	if h.body.Len() > 0 {
+		bytes, err := io.ReadAll(h.body)
+		if err != nil {
+			return err
+		}
+		hash := CalculateHMAC(bytes, h.key)
+		if hash != "" {
+			h.headers.Set(hashHeaderKey, hash)
+		}
+	}
+
+	for key, values := range h.headers {
+		for _, value := range values {
+			h.w.Header().Set(key, value)
+		}
+	}
+
+	if h.statusCode == 0 {
+		h.statusCode = http.StatusOK
+	}
+	h.w.WriteHeader(h.statusCode)
+
+	_, err := h.w.Write(h.body.Bytes())
+	return err
 }
 
 func CalculateHMAC(data []byte, key string) string {
@@ -58,8 +85,11 @@ func CalculateHMAC(data []byte, key string) string {
 
 func HashValidation(key string, next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		hw := w
-		if key != "" {
+
+		if key == "" {
+			next.ServeHTTP(w, r)
+		} else {
+
 			body, err := readRequestBody(r)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -78,10 +108,14 @@ func HashValidation(key string, next http.Handler) http.HandlerFunc {
 				return
 			}
 
-			hw = newHashWriter(w, key)
+			hw := newHashWriter(w, key)
+			next.ServeHTTP(hw, r)
+			err = hw.Flush()
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
-
-		next.ServeHTTP(hw, r)
 	}
 }
 
