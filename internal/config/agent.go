@@ -17,6 +17,7 @@ type AgentConfig struct {
 	Host           string `env:"ADDRESS"`         // адрес сервера, на который будут отправляться метрики
 	ReportInterval int    `env:"REPORT_INTERVAL"` // количество секунд между отправками метрик на сервер
 	PollInterval   int    `env:"POLL_INTERVAL"`   // количество секунд между сборами значений метрик
+	Key            string `env:"KEY"`             // ключ
 
 	// для поддержки старого варианта передачи значений метрик внутри URL установить значение "url",
 	// "json" - для передачи каждой метрики отдельным запросом, иначе "json-batch" - передача одинм пакетом всех метрик.
@@ -35,6 +36,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	hostAddress := flag.String("a", "localhost:8080", "host address")
 	reportInterval := flag.Int("r", 10, "report interval, seconds")
 	pollInterval := flag.Int("p", 2, "poll interval, seconds")
+	key := flag.String("k", "secretkey", "key")
 	apiFormat := flag.String("f", APIFormatJSONBatch, fmt.Sprintf("API format: %q, %q or %q", APIFormatJSONBatch, APIFormatJSON, APIFormatURL))
 	flag.Parse()
 
@@ -48,6 +50,10 @@ func GetAgentConfig() (AgentConfig, error) {
 
 	if cfg.PollInterval == 0 {
 		cfg.PollInterval = *pollInterval
+	}
+
+	if cfg.Key == "" {
+		cfg.Key = *key
 	}
 
 	if cfg.APIFormat == "" {

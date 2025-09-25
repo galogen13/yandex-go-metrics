@@ -16,6 +16,7 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/retry"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
+	"github.com/galogen13/yandex-go-metrics/internal/validation"
 	"go.uber.org/zap"
 
 	"github.com/go-resty/resty/v2"
@@ -256,7 +257,7 @@ func (agent *Agent) sendMetrics() {
 		}))
 
 	if agent.config.APIFormat == config.APIFormatJSONBatch {
-		err := sendMetricsBatchWithJSONBody(client, agent.config.Host, agent.metrics)
+		err := agent.sendMetricsBatchWithJSONBody(client)
 
 		if err != nil {
 			logger.Log.Error("error sending metrics batch", zap.Error(err))
@@ -351,13 +352,13 @@ func sendMetricWithJSONBody(client *resty.Client, host string, metric *metrics.M
 
 }
 
-func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*metrics.Metric) error {
+func (agent *Agent) sendMetricsBatchWithJSONBody(client *resty.Client) error {
 
 	logger.Log.Debug("prepairing to send metrics batch",
-		zap.Any("metrics", metrics),
+		zap.Any("metrics", agent.metrics),
 	)
 
-	bodyBytes, err := json.Marshal(metrics)
+	bodyBytes, err := json.Marshal(agent.metrics)
 	if err != nil {
 		return fmt.Errorf("error while marshalling metrics: %w", err)
 	}
@@ -372,9 +373,14 @@ func sendMetricsBatchWithJSONBody(client *resty.Client, host string, metrics []*
 		SetHeader("Content-Encoding", "gzip").
 		SetBody(buf.Bytes())
 
+	if agent.config.Key != "" {
+		hash := validation.CalculateHMAC(buf.Bytes(), agent.config.Key)
+		req.SetHeader("HashSHA256", hash)
+	}
+
 	baseURL := &url.URL{
 		Scheme: "http",
-		Host:   host,
+		Host:   agent.config.Host,
 		Path:   "updates",
 	}
 	fullURL := baseURL.String()

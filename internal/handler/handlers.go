@@ -26,6 +26,7 @@ type Server interface {
 	GetMetric(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error)
 	GetAllMetricsValues(ctx context.Context) (map[string]any, error)
 	PingStorage(ctx context.Context) error
+	Key() string
 }
 
 func PingStorageHandler(serverService Server) http.HandlerFunc {

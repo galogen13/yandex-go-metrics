@@ -6,6 +6,7 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
+	"github.com/galogen13/yandex-go-metrics/internal/validation"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -32,7 +33,7 @@ func metricsRouter(server handler.Server) *chi.Mux {
 	})
 
 	r.Route("/updates", func(r chi.Router) {
-		r.Post("/", logger.RequestLogger(compression.GzipMiddleware(handler.UpdatesHandler(server))))
+		r.Post("/", logger.RequestLogger(validation.HashValidation(server.Key(), compression.GzipMiddleware(handler.UpdatesHandler(server)))))
 	})
 
 	r.Route("/value", func(r chi.Router) {

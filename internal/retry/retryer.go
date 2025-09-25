@@ -58,6 +58,7 @@ func DoWithResult[T any](ctx context.Context, op func() (T, error), classifier E
 			return result, nil
 		}
 
+		// после последней попытки не делаем delay, возвращаем что получилось
 		if attempt == maxAttempts {
 			break
 		}
