@@ -52,6 +52,10 @@ func (h *hashWriter) Flush() error {
 		if err != nil {
 			return err
 		}
+		_, err = h.body.Write(bytes)
+		if err != nil {
+			return err
+		}
 		hash := CalculateHMAC(bytes, h.key)
 		if hash != "" {
 			h.headers.Set(hashHeaderKey, hash)
