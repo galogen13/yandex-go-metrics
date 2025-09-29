@@ -17,7 +17,7 @@ const (
 	hashHeaderKey = "HashSHA256"
 )
 
-type hashWriter struct {
+type HashWriter struct {
 	w          http.ResponseWriter
 	key        string
 	body       *bytes.Buffer
@@ -25,8 +25,8 @@ type hashWriter struct {
 	headers    http.Header
 }
 
-func newHashWriter(w http.ResponseWriter, key string) *hashWriter {
-	return &hashWriter{
+func NewHashWriter(w http.ResponseWriter, key string) *HashWriter {
+	return &HashWriter{
 		w:       w,
 		key:     key,
 		body:    &bytes.Buffer{},
@@ -34,19 +34,19 @@ func newHashWriter(w http.ResponseWriter, key string) *hashWriter {
 	}
 }
 
-func (h *hashWriter) Header() http.Header {
+func (h *HashWriter) Header() http.Header {
 	return h.headers
 }
 
-func (h *hashWriter) Write(p []byte) (int, error) {
+func (h *HashWriter) Write(p []byte) (int, error) {
 	return h.body.Write(p)
 }
 
-func (h *hashWriter) WriteHeader(statusCode int) {
+func (h *HashWriter) WriteHeader(statusCode int) {
 	h.statusCode = statusCode
 }
 
-func (h *hashWriter) Flush() error {
+func (h *HashWriter) Flush() error {
 	if h.body.Len() > 0 {
 		bytes, err := io.ReadAll(h.body)
 		if err != nil {
@@ -90,7 +90,8 @@ func CalculateHMAC(data []byte, key string) string {
 func HashValidation(key string, next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		if key == "" {
+		receivedHash := r.Header.Get(hashHeaderKey)
+		if key == "" || receivedHash == "" {
 			next.ServeHTTP(w, r)
 		} else {
 
@@ -99,8 +100,6 @@ func HashValidation(key string, next http.Handler) http.HandlerFunc {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-
-			receivedHash := r.Header.Get(hashHeaderKey)
 
 			expectedHash := CalculateHMAC(body, key)
 
@@ -112,7 +111,7 @@ func HashValidation(key string, next http.Handler) http.HandlerFunc {
 				return
 			}
 
-			hw := newHashWriter(w, key)
+			hw := NewHashWriter(w, key)
 			next.ServeHTTP(hw, r)
 			err = hw.Flush()
 			if err != nil {
