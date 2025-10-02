@@ -2,15 +2,8 @@ package config
 
 import (
 	"flag"
-	"fmt"
 
 	"github.com/caarlos0/env/v6"
-)
-
-const (
-	APIFormatJSON      string = "json"
-	APIFormatURL       string = "url"
-	APIFormatJSONBatch string = "json-batch"
 )
 
 type AgentConfig struct {
@@ -18,10 +11,7 @@ type AgentConfig struct {
 	ReportInterval int    `env:"REPORT_INTERVAL"` // количество секунд между отправками метрик на сервер
 	PollInterval   int    `env:"POLL_INTERVAL"`   // количество секунд между сборами значений метрик
 	Key            string `env:"KEY"`             // ключ
-
-	// для поддержки старого варианта передачи значений метрик внутри URL установить значение "url",
-	// "json" - для передачи каждой метрики отдельным запросом, иначе "json-batch" - передача одинм пакетом всех метрик.
-	APIFormat string `env:"API_FORMAT"`
+	RateLimit      int    `env:"RATE_LIMIT"`      // максимальное количество горутин, одновременно отправляющих данные на сервер
 }
 
 func GetAgentConfig() (AgentConfig, error) {
@@ -37,7 +27,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	reportInterval := flag.Int("r", 10, "report interval, seconds")
 	pollInterval := flag.Int("p", 2, "poll interval, seconds")
 	key := flag.String("k", "", "secret key")
-	apiFormat := flag.String("f", APIFormatJSONBatch, fmt.Sprintf("API format: %q, %q or %q", APIFormatJSONBatch, APIFormatJSON, APIFormatURL))
+	rateLimit := flag.Int("l", 1, "rate limit")
 	flag.Parse()
 
 	if cfg.Host == "" {
@@ -56,12 +46,8 @@ func GetAgentConfig() (AgentConfig, error) {
 		cfg.Key = *key
 	}
 
-	if cfg.APIFormat == "" {
-		cfg.APIFormat = *apiFormat
-	}
-
-	if cfg.APIFormat != APIFormatJSON && cfg.APIFormat != APIFormatURL && cfg.APIFormat != APIFormatJSONBatch {
-		return AgentConfig{}, fmt.Errorf("unexpected api format: %v", cfg.APIFormat)
+	if cfg.RateLimit == 0 {
+		cfg.RateLimit = *rateLimit
 	}
 
 	return cfg, nil
