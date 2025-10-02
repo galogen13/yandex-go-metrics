@@ -83,7 +83,10 @@ func (agent *Agent) startSendWorker(jobs <-chan any) {
 }
 
 func NewAgent(agentConfig config.AgentConfig) *Agent {
-	return &Agent{config: agentConfig, metrics: []*metrics.Metric{}, PollCount: 0, mux: &sync.Mutex{}}
+	return &Agent{
+		config:  agentConfig,
+		metrics: []*metrics.Metric{},
+		mux:     &sync.Mutex{}}
 }
 
 func (agent *Agent) updateMetrics() {
