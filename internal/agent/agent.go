@@ -30,18 +30,25 @@ const (
 )
 
 type Agent struct {
-	metrics   []*metrics.Metric
-	mux       *sync.Mutex
-	config    config.AgentConfig
-	PollCount int64
+	metrics        []*metrics.Metric
+	muxMetrics     *sync.Mutex
+	muxPollCounter *sync.Mutex
+	config         config.AgentConfig
+	PollCount      int64
 }
 
 func (agent *Agent) increasePollСounter() {
 	agent.PollCount++
 }
 
-func (agent *Agent) resetPollCounter() {
-	agent.PollCount = 0
+func (agent *Agent) decreasePollCounter(decrementer int64) {
+
+	if agent.PollCount-decrementer < 0 {
+		agent.PollCount = 0
+	} else {
+		agent.PollCount -= decrementer
+	}
+
 }
 
 func Start(config config.AgentConfig) {
@@ -84,9 +91,10 @@ func (agent *Agent) startSendWorker(jobs <-chan any) {
 
 func NewAgent(agentConfig config.AgentConfig) *Agent {
 	return &Agent{
-		config:  agentConfig,
-		metrics: []*metrics.Metric{},
-		mux:     &sync.Mutex{}}
+		config:         agentConfig,
+		metrics:        []*metrics.Metric{},
+		muxMetrics:     &sync.Mutex{},
+		muxPollCounter: &sync.Mutex{}}
 }
 
 func (agent *Agent) updateMetrics() {
@@ -99,16 +107,18 @@ func (agent *Agent) updateMetrics() {
 
 	metrics := multiplyMetrics(doneCh, addResultCh)
 
-	agent.mux.Lock()
-	defer agent.mux.Unlock()
-
+	agent.muxPollCounter.Lock()
 	agent.increasePollСounter()
-	if metric, err := newCounterMetric(pollCounterName, agent.PollCount); err != nil {
+	metric, err := newCounterMetric(pollCounterName, agent.PollCount)
+	agent.muxPollCounter.Unlock()
+	if err != nil {
 		logger.Log.Error("error updating agent metric values", zap.Error(err))
 	} else {
 		metrics = append(metrics, metric)
 	}
 
+	agent.muxMetrics.Lock()
+	defer agent.muxMetrics.Unlock()
 	agent.metrics = metrics
 
 }
@@ -434,25 +444,34 @@ func newCounterMetric(mID string, value int64) (*metrics.Metric, error) {
 
 func (agent *Agent) sendMetrics() {
 
-	agent.mux.Lock()
-	defer agent.mux.Unlock()
-
+	agent.muxMetrics.Lock()
 	if len(agent.metrics) == 0 {
 		logger.Log.Info("nothing to send")
 		return
 	}
-
-	err := agent.sendMetricsBatchWithJSONBody()
-
+	currentPollCounterMetricValue := agent.metrics[len(agent.metrics)-1].GetValue() // последняя метрика - PollCounter
+	currentPollCounter, err := metrics.CounterValue(currentPollCounterMetricValue)
 	if err != nil {
-		logger.Log.Error("error sending metrics batch", zap.Error(err))
+		logger.Log.Error("cannot read currentPollCounter", zap.Error(err))
 		return
 	}
-	agent.resetPollCounter()
 
-}
+	logger.Log.Debug("prepairing to send metrics batch",
+		zap.Any("metrics", agent.metrics),
+	)
 
-func (agent *Agent) sendMetricsBatchWithJSONBody() error {
+	bodyBytes, err := json.Marshal(agent.metrics)
+	agent.muxMetrics.Unlock()
+	if err != nil {
+		logger.Log.Error("error while marshalling metrics", zap.Error(err))
+		return
+	}
+
+	buf, err := compression.GzipCompress(bodyBytes)
+	if err != nil {
+		logger.Log.Error("error while gzip compress metrics", zap.Error(err))
+		return
+	}
 
 	client := resty.New()
 	client.SetRedirectPolicy(resty.RedirectPolicyFunc(
@@ -460,20 +479,6 @@ func (agent *Agent) sendMetricsBatchWithJSONBody() error {
 			req.Method = http.MethodPost
 			return nil
 		}))
-
-	logger.Log.Debug("prepairing to send metrics batch",
-		zap.Any("metrics", agent.metrics),
-	)
-
-	bodyBytes, err := json.Marshal(agent.metrics)
-	if err != nil {
-		return fmt.Errorf("error while marshalling metrics: %w", err)
-	}
-
-	buf, err := compression.GzipCompress(bodyBytes)
-	if err != nil {
-		return fmt.Errorf("error while gzip compress metrics: %w", err)
-	}
 
 	req := client.R().
 		SetHeader("Content-Type", "application/json").
@@ -500,15 +505,19 @@ func (agent *Agent) sendMetricsBatchWithJSONBody() error {
 		NewAgentErrorClassifier())
 
 	if err != nil {
-		return err
+		logger.Log.Error("error sending metrics", zap.Error(err))
+		return
 	}
 
 	logger.Log.Info("data sent", zap.String("url", fullURL), zap.Int("respCode", resp.StatusCode()))
 
 	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode())
+		logger.Log.Error("unexpected status code", zap.Int("status code", resp.StatusCode()))
+		return
 	}
 
-	return nil
+	agent.muxPollCounter.Lock()
+	defer agent.muxPollCounter.Unlock()
+	agent.decreasePollCounter(currentPollCounter)
 
 }

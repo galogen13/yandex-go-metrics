@@ -97,6 +97,7 @@ func HashValidation(key string, next http.Handler) http.HandlerFunc {
 
 			body, err := readRequestBody(r)
 			if err != nil {
+				logger.Log.Error("unexpected error reading request body", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -115,6 +116,7 @@ func HashValidation(key string, next http.Handler) http.HandlerFunc {
 			next.ServeHTTP(hw, r)
 			err = hw.Flush()
 			if err != nil {
+				logger.Log.Error("unexpected error reading request body", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}

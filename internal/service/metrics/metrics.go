@@ -41,7 +41,7 @@ func NewMetrics(id string, mType string) *Metric {
 func (metric *Metric) UpdateValue(value any) error {
 	switch metric.MType {
 	case Gauge:
-		metricValue, err := gaugeValue(value)
+		metricValue, err := GaugeValue(value)
 		if err != nil {
 			return fmt.Errorf("error converting gauge value: %w", err)
 		}
@@ -51,7 +51,7 @@ func (metric *Metric) UpdateValue(value any) error {
 			*metric.Value = metricValue
 		}
 	case Counter:
-		metricsValue, err := counterValue(value)
+		metricsValue, err := CounterValue(value)
 		if err != nil {
 			return fmt.Errorf("error converting counter value: %w", err)
 		}
@@ -134,7 +134,7 @@ func (metric Metric) CompareTypes(mType string) error {
 	return nil
 }
 
-func gaugeValue(value any) (float64, error) {
+func GaugeValue(value any) (float64, error) {
 	metricsValue, ok := value.(float64)
 	if !ok {
 		return 0, fmt.Errorf("value conversion error to float64: %v", value)
@@ -142,7 +142,7 @@ func gaugeValue(value any) (float64, error) {
 	return metricsValue, nil
 }
 
-func counterValue(value any) (int64, error) {
+func CounterValue(value any) (int64, error) {
 	metricsValue, ok := value.(int64)
 	if !ok {
 		return 0, fmt.Errorf("value conversion error to int64: %v", value)
