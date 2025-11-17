@@ -6,6 +6,7 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
+	"github.com/galogen13/yandex-go-metrics/internal/validation"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -20,23 +21,36 @@ func metricsRouter(server handler.Server) *chi.Mux {
 	r.NotFound(logger.RequestLogger(notFoundHandler()))
 	r.MethodNotAllowed(logger.RequestLogger(methodNotAllowedHandler()))
 
-	r.Get("/", logger.RequestLogger(compression.GzipMiddleware(handler.GetListHandler(server))))
+	r.Get("/", logger.RequestLogger(
+		compression.GzipMiddleware(
+			handler.GetListHandler(server))))
 
 	r.Route("/ping", func(r chi.Router) {
-		r.Get("/", logger.RequestLogger(handler.PingStorageHandler(server)))
+		r.Get("/", logger.RequestLogger(
+			handler.PingStorageHandler(server)))
 	})
 
 	r.Route("/update", func(r chi.Router) {
-		r.Post("/", logger.RequestLogger(compression.GzipMiddleware(handler.UpdateHandler(server))))
-		r.Post("/{mType}/{metrics}/{value}", logger.RequestLogger(handler.UpdateURLHandler(server)))
+		r.Post("/", logger.RequestLogger(
+			validation.HashValidation(server.Key(),
+				compression.GzipMiddleware(
+					handler.UpdateHandler(server)))))
+		r.Post("/{mType}/{metrics}/{value}", logger.RequestLogger(
+			handler.UpdateURLHandler(server)))
 	})
 
 	r.Route("/updates", func(r chi.Router) {
-		r.Post("/", logger.RequestLogger(compression.GzipMiddleware(handler.UpdatesHandler(server))))
+		r.Post("/", logger.RequestLogger(
+			validation.HashValidation(server.Key(),
+				compression.GzipMiddleware(
+					handler.UpdatesHandler(server)))))
 	})
 
 	r.Route("/value", func(r chi.Router) {
-		r.Post("/", logger.RequestLogger(compression.GzipMiddleware(handler.GetValueHandler(server))))
+		r.Post("/", logger.RequestLogger(
+			validation.HashValidation(server.Key(),
+				compression.GzipMiddleware(
+					handler.GetValueHandler(server)))))
 		r.Get("/{mType}/{metrics}", logger.RequestLogger(handler.GetValueURLHandler(server)))
 	})
 

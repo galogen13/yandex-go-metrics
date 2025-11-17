@@ -194,6 +194,12 @@ func (serverService *ServerService) restoreFromFile() {
 
 }
 
+func (serverService *ServerService) Key() string {
+
+	return serverService.Config.Key
+
+}
+
 func (serverService *ServerService) restoreStorageFromFile(ctx context.Context, fileStoragePath string) error {
 
 	if fileStoragePath == "" {

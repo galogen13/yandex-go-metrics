@@ -13,6 +13,7 @@ type ServerConfig struct {
 	FileStoragePath      string `env:"FILE_STORAGE_PATH"`
 	RestoreStorage       *bool  `env:"RESTORE"`
 	DatabaseDSN          string `env:"DATABASE_DSN"`
+	Key                  string `env:"KEY"`
 	UseDatabaseAsStorage bool
 	StoreOnUpdate        bool
 	StorePeriodically    bool
@@ -33,6 +34,7 @@ func GetServerConfig() (*ServerConfig, error) {
 	fileStoragePathFlag := flag.String("f", "./metricsstorage", "file storage path")
 	databaseDSNFlag := flag.String("d", "", "file storage path")
 	restoreFlag := flag.Bool("r", false, "restore storage from file")
+	key := flag.String("k", "", "secret key")
 	flag.Parse()
 
 	if cfg.Host == "" {
@@ -57,6 +59,10 @@ func GetServerConfig() (*ServerConfig, error) {
 
 	if cfg.DatabaseDSN == "" {
 		cfg.DatabaseDSN = *databaseDSNFlag
+	}
+
+	if cfg.Key == "" {
+		cfg.Key = *key
 	}
 
 	cfg.UseDatabaseAsStorage = (cfg.DatabaseDSN != "")
