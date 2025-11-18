@@ -14,6 +14,8 @@ type ServerConfig struct {
 	RestoreStorage       *bool  `env:"RESTORE"`
 	DatabaseDSN          string `env:"DATABASE_DSN"`
 	Key                  string `env:"KEY"`
+	AuditFile            string `env:"AUDIT_FILE"`
+	AuditURL             string `env:"AUDIT_URL"`
 	UseDatabaseAsStorage bool
 	StoreOnUpdate        bool
 	StorePeriodically    bool
@@ -35,6 +37,8 @@ func GetServerConfig() (*ServerConfig, error) {
 	databaseDSNFlag := flag.String("d", "", "file storage path")
 	restoreFlag := flag.Bool("r", false, "restore storage from file")
 	key := flag.String("k", "", "secret key")
+	auditFileFlag := flag.String("audit-file", "", "audit file path")
+	auditURLFlag := flag.String("audit-url", "", "audit servise URL")
 	flag.Parse()
 
 	if cfg.Host == "" {
@@ -63,6 +67,14 @@ func GetServerConfig() (*ServerConfig, error) {
 
 	if cfg.Key == "" {
 		cfg.Key = *key
+	}
+
+	if cfg.AuditFile == "" {
+		cfg.AuditFile = *auditFileFlag
+	}
+
+	if cfg.AuditURL == "" {
+		cfg.AuditURL = *auditURLFlag
 	}
 
 	cfg.UseDatabaseAsStorage = (cfg.DatabaseDSN != "")
