@@ -3,9 +3,11 @@ package audit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/retry"
@@ -35,6 +37,10 @@ type AuditLog struct {
 	Timestamp int64    `json:"ts"`
 	Metrics   []string `json:"metrics"`
 	IPAddress string   `json:"ip_address"`
+}
+
+func NewAuditLog(metricNames []string, ip string) AuditLog {
+	return AuditLog{Timestamp: time.Now().Unix(), Metrics: metricNames, IPAddress: ip}
 }
 
 type Auditor interface {
@@ -87,16 +93,22 @@ func (urlAuditor URLAuditor) Notify(auditLog AuditLog) {
 
 }
 
-func NewURLAuditor(urlStr string) *URLAuditor {
-	return &URLAuditor{urlStr: urlStr, client: resty.New()}
+func NewURLAuditor(urlStr string) (*URLAuditor, error) {
+	if urlStr == "" {
+		return nil, errors.New("url auditor: URL not filled")
+	}
+	return &URLAuditor{urlStr: urlStr, client: resty.New()}, nil
 }
 
 type FileAuditor struct {
 	filePath string
 }
 
-func NewFileAuditor(filePath string) *FileAuditor {
-	return &FileAuditor{filePath: filePath}
+func NewFileAuditor(filePath string) (*FileAuditor, error) {
+	if filePath == "" {
+		return nil, errors.New("file auditor: file path not filled")
+	}
+	return &FileAuditor{filePath: filePath}, nil
 }
 
 func (fileAuditor FileAuditor) Notify(auditLog AuditLog) {
@@ -107,11 +119,13 @@ func (fileAuditor FileAuditor) Notify(auditLog AuditLog) {
 	}
 	defer file.Close()
 
-	auditJson, err := json.Marshal(auditLog)
+	auditJson, err := json.MarshalIndent(auditLog, "	", "")
 	if err != nil {
 		logger.Log.Error("cannot marshal audit log to json", zap.Error(err))
 		return
 	}
+
+	auditJson = append(auditJson, '\n')
 
 	_, err = file.Write(auditJson)
 	if err != nil {

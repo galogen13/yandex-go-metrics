@@ -10,6 +10,7 @@ import (
 	memstorage "github.com/galogen13/yandex-go-metrics/internal/repository/memstorage"
 	pgstorage "github.com/galogen13/yandex-go-metrics/internal/repository/pgstorage"
 	"github.com/galogen13/yandex-go-metrics/internal/service/server"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -42,9 +43,7 @@ func run() error {
 	}
 	defer mStorage.Close()
 
-	auditService := audit.NewAuditServise()
-	auditService.Register(audit.NewFileAuditor(config.AuditFile))
-	auditService.Register(audit.NewURLAuditor(config.AuditURL))
+	auditService := auditServise(config)
 
 	serverService := server.NewServerService(config, mStorage, auditService)
 
@@ -53,4 +52,25 @@ func run() error {
 	}
 
 	return nil
+}
+
+func auditServise(config *config.ServerConfig) *audit.AuditServise {
+
+	auditService := audit.NewAuditServise()
+
+	fileAuditor, err := audit.NewFileAuditor(config.AuditFile)
+	if err != nil {
+		logger.Log.Info("auditor not working", zap.Error(err))
+	} else {
+		auditService.Register(fileAuditor)
+	}
+
+	urlAuditor, err := audit.NewURLAuditor(config.AuditURL)
+	if err != nil {
+		logger.Log.Info("auditor not working", zap.Error(err))
+	} else {
+		auditService.Register(urlAuditor)
+	}
+
+	return auditService
 }

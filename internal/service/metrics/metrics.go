@@ -170,3 +170,11 @@ func (metric Metric) checkValue() bool {
 	}
 	return false
 }
+
+func GetMetricIDs(metrics []*Metric) []string {
+	mNames := make([]string, 0, len(metrics))
+	for _, metric := range metrics {
+		mNames = append(mNames, metric.ID)
+	}
+	return mNames
+}

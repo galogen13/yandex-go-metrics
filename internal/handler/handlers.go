@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
+	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 	"github.com/galogen13/yandex-go-metrics/internal/web"
 	"github.com/go-chi/chi/v5"
@@ -21,8 +22,8 @@ const (
 )
 
 type Server interface {
-	UpdateMetric(ctx context.Context, metric *metrics.Metric) error
-	UpdateMetrics(ctx context.Context, metrics []*metrics.Metric) error
+	UpdateMetric(ctx context.Context, metric *metrics.Metric, addInfo addinfo.AddInfo) error
+	UpdateMetrics(ctx context.Context, metrics []*metrics.Metric, addInfo addinfo.AddInfo) error
 	GetMetric(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error)
 	GetAllMetricsValues(ctx context.Context) (map[string]any, error)
 	PingStorage(ctx context.Context) error
@@ -121,7 +122,7 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 
-		err := serverService.UpdateMetric(ctx, metric)
+		err := serverService.UpdateMetric(ctx, metric, addinfo.AddInfo{RemoteAddr: r.RemoteAddr})
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))
@@ -151,7 +152,7 @@ func UpdatesHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 
-		err := serverService.UpdateMetrics(ctx, metrics)
+		err := serverService.UpdateMetrics(ctx, metrics, addinfo.AddInfo{RemoteAddr: r.RemoteAddr})
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))
@@ -240,7 +241,7 @@ func UpdateURLHandler(serverService Server) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		err = serverService.UpdateMetric(ctx, metric)
+		err = serverService.UpdateMetric(ctx, metric, addinfo.AddInfo{RemoteAddr: r.RemoteAddr})
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))

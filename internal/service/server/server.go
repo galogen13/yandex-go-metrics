@@ -11,6 +11,7 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/audit"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
+	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 	"go.uber.org/zap"
 )
@@ -65,13 +66,13 @@ func (serverService *ServerService) Start() error {
 	return http.ListenAndServe(serverService.Config.Host, r)
 }
 
-func (serverService *ServerService) UpdateMetric(ctx context.Context, incomingMetric *metrics.Metric) error {
+func (serverService *ServerService) UpdateMetric(ctx context.Context, incomingMetric *metrics.Metric, addInfo addinfo.AddInfo) error {
 
-	return serverService.UpdateMetrics(ctx, []*metrics.Metric{incomingMetric})
+	return serverService.UpdateMetrics(ctx, []*metrics.Metric{incomingMetric}, addInfo)
 
 }
 
-func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingMetrics []*metrics.Metric) error {
+func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingMetrics []*metrics.Metric, addInfo addinfo.AddInfo) error {
 
 	IDs := make([]string, 0, len(incomingMetrics))
 	for _, incomingMetric := range incomingMetrics {
@@ -138,6 +139,9 @@ func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingM
 			logger.Log.Info("cant save metrics to file on update", zap.Error(err))
 		}
 	}
+
+	auditLog := audit.NewAuditLog(metrics.GetMetricIDs(incomingMetrics), addInfo.RemoteAddr)
+	serverService.AuditService.Notify(auditLog)
 
 	return nil
 
