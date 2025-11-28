@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/galogen13/yandex-go-metrics/internal/audit"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
@@ -25,12 +26,16 @@ type Storage interface {
 }
 
 type ServerService struct {
-	Storage Storage
-	Config  *config.ServerConfig
+	Storage      Storage
+	Config       *config.ServerConfig
+	AuditService *audit.AuditServise
 }
 
-func NewServerService(config *config.ServerConfig, storage Storage) *ServerService {
-	return &ServerService{Config: config, Storage: storage}
+func NewServerService(config *config.ServerConfig, storage Storage, auditService *audit.AuditServise) *ServerService {
+	return &ServerService{
+		Config:       config,
+		Storage:      storage,
+		AuditService: auditService}
 }
 
 func (serverService *ServerService) Start() error {
