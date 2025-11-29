@@ -54,7 +54,7 @@ type URLAuditor struct {
 
 func (urlAuditor URLAuditor) Notify(auditLog AuditLog) {
 
-	auditJson, err := json.Marshal(auditLog)
+	auditJSON, err := json.Marshal(auditLog)
 	if err != nil {
 		logger.Log.Error("cannot marshal audit log to json", zap.Error(err))
 		return
@@ -62,7 +62,7 @@ func (urlAuditor URLAuditor) Notify(auditLog AuditLog) {
 
 	req := urlAuditor.client.R().
 		SetHeader("Content-Type", "application/json").
-		SetBody(auditJson)
+		SetBody(auditJSON)
 
 	baseURL, err := url.Parse(urlAuditor.urlStr)
 	if err != nil {
@@ -119,15 +119,15 @@ func (fileAuditor FileAuditor) Notify(auditLog AuditLog) {
 	}
 	defer file.Close()
 
-	auditJson, err := json.MarshalIndent(auditLog, "	", "")
+	auditJSON, err := json.MarshalIndent(auditLog, "	", "")
 	if err != nil {
 		logger.Log.Error("cannot marshal audit log to json", zap.Error(err))
 		return
 	}
 
-	auditJson = append(auditJson, '\n')
+	auditJSON = append(auditJSON, '\n')
 
-	_, err = file.Write(auditJson)
+	_, err = file.Write(auditJSON)
 	if err != nil {
 		logger.Log.Error("cannot write audit log to file", zap.Error(err))
 		return
