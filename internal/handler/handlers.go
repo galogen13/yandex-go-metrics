@@ -25,7 +25,7 @@ type Server interface {
 	UpdateMetric(ctx context.Context, metric *metrics.Metric, addInfo addinfo.AddInfo) error
 	UpdateMetrics(ctx context.Context, metrics []*metrics.Metric, addInfo addinfo.AddInfo) error
 	GetMetric(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error)
-	GetAllMetricsValues(ctx context.Context) (map[string]any, error)
+	GetAllMetricsValues(ctx context.Context) (map[string]string, error)
 	PingStorage(ctx context.Context) error
 	Key() string
 }

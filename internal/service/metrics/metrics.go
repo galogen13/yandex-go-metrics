@@ -87,12 +87,12 @@ func (metric Metric) GetValueString() string {
 	return ""
 }
 
-func GetMetricsValues(metricsList []*Metric) map[string]any {
+func GetMetricsValues(metricsList []*Metric) map[string]string {
 
-	result := make(map[string]any, len(metricsList))
+	result := make(map[string]string, len(metricsList))
 
 	for _, metric := range metricsList {
-		result[metric.ID] = metric.GetValue()
+		result[metric.ID] = metric.GetValueString()
 	}
 
 	return result

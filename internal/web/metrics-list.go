@@ -12,7 +12,7 @@ var (
 	templateFS embed.FS
 )
 
-func MetricsListPage(metricsValues map[string]any) (bytes.Buffer, error) {
+func MetricsListPage(metricsValues map[string]string) (bytes.Buffer, error) {
 
 	var buf bytes.Buffer
 
