@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
+//go:generate mockgen -destination=mocks/storage_mock.go . Storage
 type Storage interface {
 	Update(ctx context.Context, metrics []*metrics.Metric) error
 	Insert(ctx context.Context, metrics []*metrics.Metric) error

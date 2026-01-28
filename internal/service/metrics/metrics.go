@@ -89,7 +89,7 @@ func (metric Metric) GetValueString() string {
 
 func GetMetricsValues(metricsList []*Metric) map[string]any {
 
-	result := make(map[string]any)
+	result := make(map[string]any, len(metricsList))
 
 	for _, metric := range metricsList {
 		result[metric.ID] = metric.GetValue()
@@ -159,6 +159,23 @@ var metricIDRegex = regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9]*$")
 func (metric Metric) checkID() bool {
 	match := metricIDRegex.MatchString(metric.ID)
 	return match
+
+	// if metric.ID == "" || len(metric.ID) > 256 { // ограничение длины
+	// 	return false
+	// }
+
+	// c := metric.ID[0]
+	// if !(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
+	// 	return false
+	// }
+
+	// if strings.IndexFunc(metric.ID[1:], func(r rune) bool {
+	// 	return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	// }) != -1 {
+	// 	return false
+	// }
+
+	// return true
 }
 
 func (metric Metric) checkValue() bool {
@@ -177,4 +194,15 @@ func GetMetricIDs(metrics []*Metric) []string {
 		mNames = append(mNames, metric.ID)
 	}
 	return mNames
+
+	// n := len(metrics)
+	// if n == 0 {
+	// 	return []string{}
+	// }
+
+	// mNames := make([]string, n)
+	// for i := range metrics {
+	// 	mNames[i] = metrics[i].ID
+	// }
+	// return mNames
 }
