@@ -32,6 +32,7 @@ pprof-result-web:
 	echo "Web profiling result..."
 	go tool pprof -http=:8080 profiles/result.pprof
 
+# Профиль в консоли
 pprof-base-cons:
 	echo "Console profiling base..."
 	go tool pprof profiles/base.pprof
