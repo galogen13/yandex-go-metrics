@@ -132,7 +132,7 @@ func BenchmarkUpdateMetrics_MemStorage(b *testing.B) {
 
 }
 
-func BenchmarkGetMetrics(b *testing.B) {
+func BenchmarkGetMetric(b *testing.B) {
 
 	config := &config.ServerConfig{}
 
@@ -232,7 +232,7 @@ func BenchmarkGetAllMetricsValues(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		ss.GetAllMetricsValues(ctx)
+		ss.GetAllMetrics(ctx)
 	}
 
 }

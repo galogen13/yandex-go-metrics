@@ -88,48 +88,34 @@ func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingM
 		return errUpdatingMetrics(err)
 	}
 
-	metricsUpdate := make(map[string]*metrics.Metric, len(incomingMetrics)/2+1)
-	metricsInsert := make(map[string]*metrics.Metric, len(incomingMetrics)/2+1)
+	metricsUpdate := make([]*metrics.Metric, 0, len(incomingMetrics)/2+1)
+	metricsInsert := make([]*metrics.Metric, 0, len(incomingMetrics)/2+1)
 
 	for _, incomingMetric := range incomingMetrics {
 
-		metric, ok := metricsInsert[incomingMetric.ID]
-		if ok {
-			metric.UpdateValue(incomingMetric.GetValue())
-			metricsInsert[metric.ID] = metric
-			continue
-		}
-
-		metric, ok = metricsUpdate[incomingMetric.ID]
-		if ok {
-			metric.UpdateValue(incomingMetric.GetValue())
-			metricsUpdate[metric.ID] = metric
-			continue
-		}
-
-		metric, ok = metricsFound[incomingMetric.ID]
+		metric, ok := metricsFound[incomingMetric.ID]
 		if ok {
 			err := metric.CompareTypes(incomingMetric.MType)
 			if err != nil {
 				return errUpdatingMetrics(err)
 			}
 			metric.UpdateValue(incomingMetric.GetValue())
-			metricsUpdate[metric.ID] = metric
+			metricsUpdate = append(metricsUpdate, metric)
 
 		} else {
-			metricsInsert[incomingMetric.ID] = incomingMetric
+			metricsInsert = append(metricsInsert, incomingMetric)
 		}
 
 	}
 
 	if len(metricsInsert) > 0 {
-		if err := serverService.Storage.Insert(ctx, metrics.GetMetricsFromMap(metricsInsert)); err != nil {
+		if err := serverService.Storage.Insert(ctx, metricsInsert); err != nil {
 			return errUpdatingMetrics(err)
 		}
 	}
 
 	if len(metricsUpdate) > 0 {
-		if err := serverService.Storage.Update(ctx, metrics.GetMetricsFromMap(metricsUpdate)); err != nil {
+		if err := serverService.Storage.Update(ctx, metricsUpdate); err != nil {
 			return errUpdatingMetrics(err)
 		}
 	}
@@ -165,14 +151,13 @@ func (serverService *ServerService) GetMetric(ctx context.Context, incomingMetri
 	return metric, nil
 }
 
-func (serverService *ServerService) GetAllMetricsValues(ctx context.Context) (map[string]string, error) {
+func (serverService *ServerService) GetAllMetrics(ctx context.Context) ([]*metrics.Metric, error) {
 
 	allMetrics, err := serverService.Storage.GetAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error getting all metrics: %w", err)
 	}
-	metricsValues := metrics.GetMetricsValues(allMetrics)
-	return metricsValues, nil
+	return allMetrics, nil
 
 }
 

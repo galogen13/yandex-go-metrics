@@ -87,8 +87,8 @@ func (storage *PGStorage) insertNoRetry(ctx context.Context, metricsInsert []*me
 
 	for _, metric := range metricsInsert {
 		batch.Queue(
-			`INSERT INTO metrics(id, mtype, value, delta) VALUES ($1, $2, $3, $4)`,
-			metric.ID, metric.MType, metric.Value, metric.Delta,
+			`INSERT INTO metrics(id, mtype, value, delta, value_str) VALUES ($1, $2, $3, $4, $5)`,
+			metric.ID, metric.MType, metric.Value, metric.Delta, metric.ValueStr,
 		)
 	}
 
@@ -137,8 +137,8 @@ func (storage *PGStorage) updateNoRetry(ctx context.Context, metricsUpdate []*me
 
 	for _, metric := range metricsUpdate {
 		batch.Queue(
-			`UPDATE metrics SET value=$1, delta=$2 WHERE id=$3 AND mtype=$4;`,
-			metric.Value, metric.Delta, metric.ID, metric.MType,
+			`UPDATE metrics SET value=$1, delta=$2, value_str=$3 WHERE id=$4 AND mtype=$5;`,
+			metric.Value, metric.Delta, metric.ValueStr, metric.ID, metric.MType,
 		)
 	}
 
@@ -178,13 +178,14 @@ func (storage *PGStorage) Get(ctx context.Context, metric *metrics.Metric) (*met
 func (storage *PGStorage) getNoRetry(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error) {
 
 	var (
-		value sql.NullFloat64
-		delta sql.NullInt64
+		value    sql.NullFloat64
+		delta    sql.NullInt64
+		valueStr sql.NullString
 	)
 
-	row := storage.pool.QueryRow(ctx, "SELECT id, mtype, value, delta FROM metrics WHERE id = $1 AND mtype = $2;", metric.ID, metric.MType)
+	row := storage.pool.QueryRow(ctx, "SELECT id, mtype, value, delta, value_str FROM metrics WHERE id = $1 AND mtype = $2;", metric.ID, metric.MType)
 	qMetric := metrics.Metric{}
-	err := row.Scan(&qMetric.ID, &qMetric.MType, &value, &delta)
+	err := row.Scan(&qMetric.ID, &qMetric.MType, &value, &delta, &valueStr)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -200,6 +201,9 @@ func (storage *PGStorage) getNoRetry(ctx context.Context, metric *metrics.Metric
 		qMetric.Delta = &delta.Int64
 	}
 
+	if valueStr.Valid {
+		qMetric.ValueStr = valueStr.String
+	}
 	return &qMetric, nil
 }
 
@@ -216,23 +220,24 @@ func (storage *PGStorage) GetByIDs(ctx context.Context, ids []string) (map[strin
 
 func (storage *PGStorage) getByIDsNoRetry(ctx context.Context, ids []string) (map[string]*metrics.Metric, error) {
 
-	rows, err := storage.pool.Query(ctx, "SELECT id, mtype, value, delta FROM metrics WHERE id = ANY($1);", ids)
+	rows, err := storage.pool.Query(ctx, "SELECT id, mtype, value, delta, value_str FROM metrics WHERE id = ANY($1);", ids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to do query GetByIDs: %w", err)
 	}
 
 	defer rows.Close()
 
-	result := make(map[string]*metrics.Metric)
+	result := make(map[string]*metrics.Metric, len(ids))
 
 	for rows.Next() {
 		var (
-			value   sql.NullFloat64
-			delta   sql.NullInt64
-			qMetric metrics.Metric
+			value    sql.NullFloat64
+			delta    sql.NullInt64
+			valueStr sql.NullString
+			qMetric  metrics.Metric
 		)
 
-		err = rows.Scan(&qMetric.ID, &qMetric.MType, &value, &delta)
+		err = rows.Scan(&qMetric.ID, &qMetric.MType, &value, &delta, &valueStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan query result GetByIDs: %w", err)
 		}
@@ -243,6 +248,10 @@ func (storage *PGStorage) getByIDsNoRetry(ctx context.Context, ids []string) (ma
 
 		if delta.Valid {
 			qMetric.Delta = &delta.Int64
+		}
+
+		if valueStr.Valid {
+			qMetric.ValueStr = valueStr.String
 		}
 
 		result[qMetric.ID] = &qMetric
@@ -269,7 +278,7 @@ func (storage *PGStorage) GetAll(ctx context.Context) ([]*metrics.Metric, error)
 func (storage *PGStorage) getAllNoRetry(ctx context.Context) ([]*metrics.Metric, error) {
 
 	result := []*metrics.Metric{}
-	rows, err := storage.pool.Query(ctx, "SELECT id, mtype, value, delta FROM metrics;")
+	rows, err := storage.pool.Query(ctx, "SELECT id, mtype, value, delta, value_str FROM metrics;")
 	if err != nil {
 		return nil, fmt.Errorf("failed to do query GetAll: %w", err)
 	}
@@ -278,12 +287,13 @@ func (storage *PGStorage) getAllNoRetry(ctx context.Context) ([]*metrics.Metric,
 
 	for rows.Next() {
 		var (
-			value   sql.NullFloat64
-			delta   sql.NullInt64
-			qMetric metrics.Metric
+			value    sql.NullFloat64
+			delta    sql.NullInt64
+			valueStr sql.NullString
+			qMetric  metrics.Metric
 		)
 
-		err = rows.Scan(&qMetric.ID, &qMetric.MType, &value, &delta)
+		err = rows.Scan(&qMetric.ID, &qMetric.MType, &value, &delta, &valueStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan query result GetAll: %w", err)
 		}
@@ -294,6 +304,10 @@ func (storage *PGStorage) getAllNoRetry(ctx context.Context) ([]*metrics.Metric,
 
 		if delta.Valid {
 			qMetric.Delta = &delta.Int64
+		}
+
+		if valueStr.Valid {
+			qMetric.ValueStr = valueStr.String
 		}
 
 		result = append(result, &qMetric)

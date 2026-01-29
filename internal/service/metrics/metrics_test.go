@@ -16,10 +16,12 @@ func TestUpdateValue(t *testing.T) {
 	gaugeValue := 12.34
 	newGauge := NewMetrics("Alloc", Gauge)
 	newGauge.Value = &gaugeValue
+	newGauge.ValueStr = "12.34"
 
 	var counterValue int64 = 2
 	newCounter := NewMetrics("Counter", Counter)
 	newCounter.Delta = &counterValue
+	newCounter.ValueStr = "2"
 
 	tests := []struct {
 		name    string
@@ -50,11 +52,13 @@ func TestUpdateValue(t *testing.T) {
 			if tt.args.metric.MType == Gauge {
 				assert.Equal(t, *tt.want.Value, *tt.args.metric.Value)
 				assert.Nil(t, tt.args.metric.Delta)
+				assert.Equal(t, tt.want.ValueStr, tt.args.metric.ValueStr)
 			}
 
 			if tt.args.metric.MType == Counter {
 				assert.Equal(t, *tt.want.Delta, *tt.args.metric.Delta)
 				assert.Nil(t, tt.args.metric.Value)
+				assert.Equal(t, tt.want.ValueStr, tt.args.metric.ValueStr)
 			}
 
 			require.NoError(t, err)

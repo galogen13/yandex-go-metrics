@@ -23,11 +23,12 @@ var (
 // что бы отличать значение "0", от не заданного значения
 // и соответственно не кодировать в структуру.
 type Metric struct {
-	ID    string   `json:"id"`
-	MType string   `json:"type"`
-	Delta *int64   `json:"delta,omitempty"`
-	Value *float64 `json:"value,omitempty"`
-	Hash  string   `json:"-"` // `json:"hash,omitempty"`
+	ID       string   `json:"id"`
+	MType    string   `json:"type"`
+	Delta    *int64   `json:"delta,omitempty"`
+	Value    *float64 `json:"value,omitempty"`
+	Hash     string   `json:"-"` // `json:"hash,omitempty"`
+	ValueStr string   `json:"-"`
 }
 
 func NewMetrics(id string, mType string) *Metric {
@@ -63,6 +64,7 @@ func (metric *Metric) UpdateValue(value any) error {
 	default:
 		return fmt.Errorf("invalid metric type when updating value: %s", metric.MType)
 	}
+	metric.ValueStr = metric.getValueString()
 
 	return nil
 }
@@ -77,7 +79,7 @@ func (metric Metric) GetValue() any {
 	return nil
 }
 
-func (metric Metric) GetValueString() string {
+func (metric Metric) getValueString() string {
 	switch metric.MType {
 	case Gauge:
 		return strconv.FormatFloat(*metric.Value, 'f', -1, 64)
@@ -85,28 +87,6 @@ func (metric Metric) GetValueString() string {
 		return strconv.FormatInt(*metric.Delta, 10)
 	}
 	return ""
-}
-
-func GetMetricsValues(metricsList []*Metric) map[string]string {
-
-	result := make(map[string]string, len(metricsList))
-
-	for _, metric := range metricsList {
-		result[metric.ID] = metric.GetValueString()
-	}
-
-	return result
-}
-
-func GetMetricsFromMap(metrics map[string]*Metric) []*Metric {
-
-	result := make([]*Metric, 0, len(metrics))
-
-	for _, metric := range metrics {
-		result = append(result, metric)
-	}
-
-	return result
 }
 
 func (metric Metric) Check(checkValue bool) error {
@@ -194,15 +174,4 @@ func GetMetricIDs(metrics []*Metric) []string {
 		mNames = append(mNames, metric.ID)
 	}
 	return mNames
-
-	// n := len(metrics)
-	// if n == 0 {
-	// 	return []string{}
-	// }
-
-	// mNames := make([]string, n)
-	// for i := range metrics {
-	// 	mNames[i] = metrics[i].ID
-	// }
-	// return mNames
 }

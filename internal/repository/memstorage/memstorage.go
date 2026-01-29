@@ -55,7 +55,7 @@ func (storage *MemStorage) GetByIDs(ctx context.Context, IDs []string) (map[stri
 	storage.mu.RLock()
 	defer storage.mu.RUnlock()
 
-	result := make(map[string]*metrics.Metric)
+	result := make(map[string]*metrics.Metric, len(IDs))
 
 	for _, ID := range IDs {
 		metric, ok := storage.Metrics[ID]
