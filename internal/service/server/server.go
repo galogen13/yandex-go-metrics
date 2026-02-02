@@ -165,7 +165,7 @@ func (serverService *ServerService) GetMetric(ctx context.Context, incomingMetri
 	return metric, nil
 }
 
-func (serverService *ServerService) GetAllMetricsValues(ctx context.Context) (map[string]any, error) {
+func (serverService *ServerService) GetAllMetrics(ctx context.Context) (map[string]any, error) {
 
 	allMetrics, err := serverService.Storage.GetAll(ctx)
 	if err != nil {

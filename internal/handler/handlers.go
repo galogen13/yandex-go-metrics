@@ -25,7 +25,7 @@ type Server interface {
 	UpdateMetric(ctx context.Context, metric *metrics.Metric, addInfo addinfo.AddInfo) error
 	UpdateMetrics(ctx context.Context, metrics []*metrics.Metric, addInfo addinfo.AddInfo) error
 	GetMetric(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error)
-	GetAllMetricsValues(ctx context.Context) (map[string]any, error)
+	GetAllMetrics(ctx context.Context) (map[string]any, error)
 	PingStorage(ctx context.Context) error
 	Key() string
 }
@@ -50,7 +50,7 @@ func GetListHandler(serverService Server) http.HandlerFunc {
 
 		ctx := r.Context()
 
-		metricsValues, err := serverService.GetAllMetricsValues(ctx)
+		metricsValues, err := serverService.GetAllMetrics(ctx)
 		if err != nil {
 			logger.Log.Error("Error getting list of metrics", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)

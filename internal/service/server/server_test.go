@@ -187,7 +187,7 @@ func BenchmarkGetMetrics(b *testing.B) {
 
 }
 
-func BenchmarkGetAllMetricsValues(b *testing.B) {
+func BenchmarkGetAllMetrics(b *testing.B) {
 
 	config := &config.ServerConfig{}
 
@@ -228,7 +228,7 @@ func BenchmarkGetAllMetricsValues(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		ss.GetAllMetricsValues(ctx)
+		ss.GetAllMetrics(ctx)
 	}
 
 }
