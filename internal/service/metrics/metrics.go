@@ -89,7 +89,7 @@ func (metric Metric) GetValueString() string {
 
 func GetMetricsValues(metricsList []*Metric) map[string]any {
 
-	result := make(map[string]any, len(metricsList))
+	result := make(map[string]any)
 
 	for _, metric := range metricsList {
 		result[metric.ID] = metric.GetValue()
