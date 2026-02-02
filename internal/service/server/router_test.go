@@ -53,7 +53,7 @@ func TestRouter_Update(t *testing.T) {
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
-	auditService := audit.NewAuditServise()
+	auditService := audit.NewAuditService()
 
 	serverService := NewServerService(&config, stor, auditService)
 
@@ -152,7 +152,7 @@ func TestRouter_Get(t *testing.T) {
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
-	auditService := audit.NewAuditServise()
+	auditService := audit.NewAuditService()
 
 	serverService := NewServerService(&config, stor, auditService)
 
@@ -230,7 +230,7 @@ func TestRouter_Compression(t *testing.T) {
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
-	auditService := audit.NewAuditServise()
+	auditService := audit.NewAuditService()
 
 	serverService := NewServerService(&config, stor, auditService)
 
@@ -284,7 +284,7 @@ func TestRouter_UpdateURL(t *testing.T) {
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
-	auditService := audit.NewAuditServise()
+	auditService := audit.NewAuditService()
 
 	serverService := NewServerService(&config, stor, auditService)
 
@@ -372,7 +372,7 @@ func TestRouter_GetList(t *testing.T) {
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
-	auditService := audit.NewAuditServise()
+	auditService := audit.NewAuditService()
 
 	serverService := NewServerService(&config, stor, auditService)
 
@@ -428,7 +428,7 @@ func TestRouter_GetURL(t *testing.T) {
 
 	stor := storage.NewMemStorage()
 	config := config.ServerConfig{Host: "localhost:8080"}
-	auditService := audit.NewAuditServise()
+	auditService := audit.NewAuditService()
 
 	serverService := NewServerService(&config, stor, auditService)
 
@@ -557,7 +557,7 @@ func TestGzipCompression(t *testing.T) {
 	require.NoError(t, err)
 	config, err := config.GetServerConfig()
 	require.NoError(t, err)
-	auditService := audit.NewAuditServise()
+	auditService := audit.NewAuditService()
 
 	serverService := NewServerService(config, stor, auditService)
 

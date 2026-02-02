@@ -26,7 +26,7 @@ func BenchmarkUpdateMetrics(b *testing.B) {
 	mockStorage := mock_server.NewMockStorage(ctrl)
 	defer ctrl.Finish()
 
-	as := audit.NewAuditServise()
+	as := audit.NewAuditService()
 
 	ctx := context.Background()
 
@@ -71,10 +71,9 @@ func BenchmarkUpdateMetrics(b *testing.B) {
 	mockStorage.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockStorage.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ss.UpdateMetrics(ctx, incomingMetrics, ai)
 	}
 
@@ -86,7 +85,7 @@ func BenchmarkUpdateMetrics_MemStorage(b *testing.B) {
 	config := &config.ServerConfig{}
 
 	memstorage := memstorage.NewMemStorage()
-	as := audit.NewAuditServise()
+	as := audit.NewAuditService()
 
 	ctx := context.Background()
 
@@ -123,10 +122,9 @@ func BenchmarkUpdateMetrics_MemStorage(b *testing.B) {
 
 	}
 
-	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ss.UpdateMetrics(ctx, incomingMetrics, ai)
 	}
 
@@ -140,7 +138,7 @@ func BenchmarkGetMetrics(b *testing.B) {
 	mockStorage := mock_server.NewMockStorage(ctrl)
 	defer ctrl.Finish()
 
-	as := audit.NewAuditServise()
+	as := audit.NewAuditService()
 
 	ctx := context.Background()
 
@@ -179,10 +177,9 @@ func BenchmarkGetMetrics(b *testing.B) {
 
 	}
 
-	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, metric := range incomingMetrics {
 			ss.GetMetric(ctx, metric)
 		}
@@ -198,7 +195,7 @@ func BenchmarkGetAllMetricsValues(b *testing.B) {
 	mockStorage := mock_server.NewMockStorage(ctrl)
 	defer ctrl.Finish()
 
-	as := audit.NewAuditServise()
+	as := audit.NewAuditService()
 
 	ctx := context.Background()
 
@@ -228,10 +225,9 @@ func BenchmarkGetAllMetricsValues(b *testing.B) {
 	}
 	mockStorage.EXPECT().GetAll(gomock.Any()).Return(incomingMetrics, nil).AnyTimes()
 
-	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ss.GetAllMetricsValues(ctx)
 	}
 
