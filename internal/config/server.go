@@ -6,6 +6,7 @@ import (
 	"github.com/caarlos0/env/v6"
 )
 
+// ServerConfig - структура параметров сервера
 type ServerConfig struct {
 	Host                 string `env:"ADDRESS"`
 	LogLevel             string `env:"LOG_LEVEL"`

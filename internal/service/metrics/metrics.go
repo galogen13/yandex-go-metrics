@@ -1,3 +1,7 @@
+// Модуль обеспечивает корректную работу с метриками
+// Метрики бывают двух типов:
+// - Тип gauge (float64) — метрика, новое значение которой полностью замещает текущее значение на сервере.
+// - Тип counter (int64) — метрика-счетчик. Агент отправляет дельту, на которую должно измениться значение счетчика за сервере.
 package metrics
 
 import (
@@ -17,20 +21,21 @@ var (
 	ErrMetricNotFound   = errors.New("metric not found")
 )
 
-// NOTE: Не усложняем пример, вводя иерархическую вложенность структур.
-// Органичиваясь плоской моделью.
-// Delta и Value объявлены через указатели,
-// что бы отличать значение "0", от не заданного значения
-// и соответственно не кодировать в структуру.
+// Metric описывает метрику, где:
+// - ID - уникальный идентификатор метрики.
+// - MType - тип метрики (Counter или Gauge).
+// - Delta - значение, на которое изменяется метрика типа counter, если метрика типа gauge - не заполнено.
+// - Value - значение метрики типа gauge, если метрика типа counter - не заполнено.
+// - ValueStr - строковое представление значения метрики.
 type Metric struct {
 	ID       string   `json:"id"`
 	MType    string   `json:"type"`
 	Delta    *int64   `json:"delta,omitempty"`
 	Value    *float64 `json:"value,omitempty"`
-	Hash     string   `json:"-"` // `json:"hash,omitempty"`
 	ValueStr string   `json:"-"`
 }
 
+// NewMetrics создает новый экземпляр метрики по идентификатору и типу метрики
 func NewMetrics(id string, mType string) *Metric {
 	metric := Metric{}
 	metric.ID = id
@@ -39,6 +44,7 @@ func NewMetrics(id string, mType string) *Metric {
 	return &metric
 }
 
+// UpdateValue обновляет значение метрики
 func (metric *Metric) UpdateValue(value any) error {
 	switch metric.MType {
 	case Gauge:
@@ -69,6 +75,7 @@ func (metric *Metric) UpdateValue(value any) error {
 	return nil
 }
 
+// GetValue возвращает значение метрики. Тип возвращаемого значения зависит от типа метрики
 func (metric Metric) GetValue() any {
 	switch metric.MType {
 	case Gauge:
@@ -89,6 +96,10 @@ func (metric Metric) getValueString() string {
 	return ""
 }
 
+// Check проверяет корректность заполненности метрики:
+// - корректный идентификатор (начинается с буквы, не содержит служебных символов)
+// - корректный тип (gauge или counter)
+// - заполнено корректное поле значения в зависимости от типа
 func (metric Metric) Check(checkValue bool) error {
 	metricIDIsCorrect := metric.checkID()
 	if !metricIDIsCorrect {
@@ -107,6 +118,7 @@ func (metric Metric) Check(checkValue bool) error {
 	return nil
 }
 
+// CompareTypes сравнивает входящий тип с текущим. Если типы не равны - возвращает ошибку.
 func (metric Metric) CompareTypes(mType string) error {
 	if metric.MType != mType {
 		return fmt.Errorf("%w: metric type does not match incoming metric type. expected: %s, have: %s", ErrMetricValidation, metric.MType, mType)
@@ -114,6 +126,7 @@ func (metric Metric) CompareTypes(mType string) error {
 	return nil
 }
 
+// GaugeValue преобразует входящий параметр типа any в тип значения gauge (float64).
 func GaugeValue(value any) (float64, error) {
 	metricsValue, ok := value.(float64)
 	if !ok {
@@ -122,6 +135,7 @@ func GaugeValue(value any) (float64, error) {
 	return metricsValue, nil
 }
 
+// CounterValue преобразует входящий параметр типа any в тип значения counter (int64).
 func CounterValue(value any) (int64, error) {
 	metricsValue, ok := value.(int64)
 	if !ok {
@@ -152,6 +166,7 @@ func (metric Metric) checkValue() bool {
 	return false
 }
 
+// GetMetricIDs возвращает слайс идентификаторов метрик по входному параметру со слайсом метрик
 func GetMetricIDs(metrics []*Metric) []string {
 	mNames := make([]string, 0, len(metrics))
 	for _, metric := range metrics {
