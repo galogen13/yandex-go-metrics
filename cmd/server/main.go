@@ -43,7 +43,7 @@ func run() error {
 	}
 	defer mStorage.Close()
 
-	auditService := auditServise(config)
+	auditService := auditService(config)
 
 	serverService := server.NewServerService(config, mStorage, auditService)
 
@@ -54,9 +54,9 @@ func run() error {
 	return nil
 }
 
-func auditServise(config *config.ServerConfig) *audit.AuditServise {
+func auditService(config *config.ServerConfig) *audit.AuditService {
 
-	auditService := audit.NewAuditServise()
+	auditService := audit.NewAuditService()
 
 	fileAuditor, err := audit.NewFileAuditor(config.AuditFile)
 	if err != nil {

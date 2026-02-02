@@ -15,19 +15,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type AuditServise struct {
+type AuditService struct {
 	Auditors []Auditor
 }
 
-func NewAuditServise() *AuditServise {
-	return &AuditServise{Auditors: []Auditor{}}
+func NewAuditService() *AuditService {
+	return &AuditService{Auditors: []Auditor{}}
 }
 
-func (as *AuditServise) Register(auditor Auditor) {
+func (as *AuditService) Register(auditor Auditor) {
 	as.Auditors = append(as.Auditors, auditor)
 }
 
-func (as *AuditServise) Notify(auditLog AuditLog) {
+func (as *AuditService) Notify(auditLog AuditLog) {
 	for _, auditor := range as.Auditors {
 		go auditor.Notify(auditLog)
 	}
