@@ -37,10 +37,10 @@
             </tr>
         </thead>
         <tbody>
-{{ range $key, $value := . }}
+{{ range . }}
             <tr>
-                <td>{{ $key }}</td>
-                <td>{{ $value }}</td>
+                <td>{{ .ID }}</td>
+                <td>{{ .ValueStr }}</td>
             </tr>
 {{ end }}
         </tbody>

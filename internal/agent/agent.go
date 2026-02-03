@@ -1,3 +1,46 @@
+// Модуль агента - сборщика метрик, которые собираются с определенным интервалом времени (pollInterval) и отправляются на сервер по протоколу http с определенным интервалом (reportInterval).
+// Метрики бывают двух типов:
+// - Тип gauge (float64) — метрика, новое значение которой полностью замещает текущее значение на сервере.
+// - Тип counter (int64) — метрика-счетчик. Агент отправляет дельту, на которую должно измениться значение счетчика за сервере.
+//
+// Агентом собираются следующие метрики:
+// 1. Метрики типа gauge из пакета runtime:
+// - Alloc,
+// - BuckHashSys,
+// - Frees,
+// - GCCPUFraction,
+// - GCSys,
+// - HeapAlloc,
+// - HeapIdle,
+// - HeapInuse,
+// - HeapObjects,
+// - HeapReleased,
+// - HeapSys,
+// - LastGC,
+// - Lookups,
+// - MCacheInuse,
+// - MCacheSys,
+// - MSpanInuse,
+// - MSpanSys,
+// - Mallocs,
+// - NextGC,
+// - NumForcedGC,
+// - NumGC,
+// - OtherSys,
+// - PauseTotalNs,
+// - StackInuse,
+// - StackSys,
+// - Sys,
+// - TotalAlloc,
+//
+// 2. Метрики типа gauge из пакета runtime:
+// - TotalMemory,
+// - FreeMemory,
+// - CPUutilization1 (точное количество — по числу CPU, определяемому во время исполнения).
+//
+// 3. Произвольные метрики:
+// - PollCount (тип counter) — счётчик, увеличивающийся на 1 при каждом обновлении метрик из пакета runtime (на каждый pollInterval).
+// - RandomValue (тип gauge) — обновляемое произвольное значение.
 package agent
 
 import (
@@ -26,15 +69,20 @@ import (
 )
 
 const (
+	// pollCounterName - имя метрики-счетчика PollCount
 	pollCounterName = "PollCount"
 )
 
+// Agent - структура агента
 type Agent struct {
+	// metrics - слайс метрик, собранных агентом
 	metrics        []*metrics.Metric
 	muxMetrics     *sync.Mutex
 	muxPollCounter *sync.Mutex
-	config         config.AgentConfig
-	PollCount      int64
+	// config - структура с параметрами работы агента
+	config config.AgentConfig
+	// PollCount - метрика-счетчик, которая накапливает количество попыток сбора метрик из пакета runtime
+	PollCount int64
 }
 
 func (agent *Agent) increasePollСounter() {
@@ -51,6 +99,7 @@ func (agent *Agent) decreasePollCounter(decrementer int64) {
 
 }
 
+// Start иницииализирует агента, запускает таймеры сбора метрик и их отправки на сервер.
 func Start(config config.AgentConfig) {
 
 	agent := NewAgent(config)
@@ -89,6 +138,7 @@ func (agent *Agent) startSendWorker(jobs <-chan any) {
 	}
 }
 
+// NewAgent инициализирует структуру агента с параметрами настройки
 func NewAgent(agentConfig config.AgentConfig) *Agent {
 	return &Agent{
 		config:         agentConfig,

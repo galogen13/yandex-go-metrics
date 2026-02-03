@@ -1,3 +1,6 @@
+// Пакет handler предоставляет HTTP-обработчики для сервера сбора метрик.
+// Обработчики поддерживают обновление и получение метрик через REST API
+// как в формате JSON, так и через URL-параметры.
 package handler
 
 import (
@@ -10,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
+	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 	"github.com/galogen13/yandex-go-metrics/internal/web"
 	"github.com/go-chi/chi/v5"
@@ -20,15 +24,50 @@ const (
 	respContentTypeTextPlain = "text/plain; charset=utf-8"
 )
 
+// Server определяет интерфейс сервиса для работы с метриками.
+// Реализации должны предоставлять методы для обновления, получения
+// и проверки состояния метрик.
 type Server interface {
-	UpdateMetric(ctx context.Context, metric *metrics.Metric) error
-	UpdateMetrics(ctx context.Context, metrics []*metrics.Metric) error
+	// UpdateMetric обновляет одиночную метрику.
+	// Принимает контекст, метрику и дополнительную информацию.
+	// Возвращает ошибку в случае неудачи.
+	UpdateMetric(ctx context.Context, metric *metrics.Metric, addInfo addinfo.AddInfo) error
+
+	// UpdateMetrics обновляет несколько метрик за один запрос.
+	// Принимает контекст, слайс метрик и дополнительную информацию.
+	// Возвращает ошибку в случае неудачи.
+	UpdateMetrics(ctx context.Context, metrics []*metrics.Metric, addInfo addinfo.AddInfo) error
+
+	// GetMetric возвращает метрику по запросу.
+	// Принимает контекст и метрику с идентификатором и типом.
+	// Возвращает найденную метрику с значением или ошибку.
 	GetMetric(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error)
-	GetAllMetricsValues(ctx context.Context) (map[string]any, error)
+
+	// GetAllMetrics возвращает все доступные метрики.
+	// Принимает контекст выполнения.
+	// Возвращает слайс метрик или ошибку.
+	GetAllMetrics(ctx context.Context) ([]*metrics.Metric, error)
+
+	// PingStorage проверяет доступность хранилища метрик.
+	// Принимает контекст выполнения.
+	// Возвращает ошибку если хранилище недоступно.
 	PingStorage(ctx context.Context) error
+
+	// Key возвращает ключ для подписи метрик.
 	Key() string
 }
 
+// PingStorageHandler возвращает HTTP-обработчик для проверки доступности хранилища.
+// Обработчик проверяет соединение с базой данных или другим хранилищем.
+// В случае успеха возвращает статус 200 OK, при ошибке - 500 Internal Server Error.
+//
+// Пример запроса:
+//
+//	GET /ping HTTP/1.1
+//
+// Пример успешного ответа:
+//
+//	HTTP/1.1 200 OK
 func PingStorageHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -44,12 +83,26 @@ func PingStorageHandler(serverService Server) http.HandlerFunc {
 	}
 }
 
+// GetListHandler возвращает HTTP-обработчик для получения списка всех метрик.
+// Обработчик возвращает HTML-страницу с таблицей всех метрик и их значений.
+// В случае ошибки возвращает статус 500 Internal Server Error.
+//
+// Пример запроса:
+//
+//	GET / HTTP/1.1
+//
+// Пример ответа (HTML):
+//
+//	HTTP/1.1 200 OK
+//	Content-Type: text/html; charset=utf-8
+//
+//	<html>...список метрик...</html>
 func GetListHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		ctx := r.Context()
 
-		metricsValues, err := serverService.GetAllMetricsValues(ctx)
+		metricsValues, err := serverService.GetAllMetrics(ctx)
 		if err != nil {
 			logger.Log.Error("Error getting list of metrics", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
@@ -69,6 +122,35 @@ func GetListHandler(serverService Server) http.HandlerFunc {
 	}
 }
 
+// GetValueHandler возвращает HTTP-обработчик для получения значения метрики в формате JSON.
+// Обработчик принимает метрику в формате JSON, находит её и возвращает с значением.
+// Поддерживает метрики типа gauge и counter.
+//
+// Пример запроса:
+//
+//	POST /value HTTP/1.1
+//	Content-Type: application/json
+//
+//	{
+//	    "id": "Alloc",
+//	    "type": "gauge"
+//	}
+//
+// Пример успешного ответа:
+//
+//	HTTP/1.1 200 OK
+//	Content-Type: application/json
+//
+//	{
+//	    "id": "Alloc",
+//	    "type": "gauge",
+//	    "value": 123.45
+//	}
+//
+// В случае ошибки возвращает:
+//   - 400 Bad Request - некорректный запрос
+//   - 404 Not Found - метрика не найдена
+//   - 500 Internal Server Error - внутренняя ошибка сервера
 func GetValueHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -107,6 +189,28 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 	}
 }
 
+// UpdateHandler возвращает HTTP-обработчик для обновления метрики в формате JSON.
+// Обработчик принимает метрику с новым значением и сохраняет её.
+// Поддерживает обновление одиночных метрик типа gauge и counter.
+//
+// Пример запроса:
+//
+//	POST /update HTTP/1.1
+//	Content-Type: application/json
+//
+//	{
+//	    "id": "Alloc",
+//	    "type": "gauge",
+//	    "value": 123.45
+//	}
+//
+// Пример успешного ответа:
+//
+//	HTTP/1.1 200 OK
+//
+// В случае ошибки возвращает:
+//   - 400 Bad Request - некорректный запрос или валидация
+//   - 500 Internal Server Error - внутренняя ошибка сервера
 func UpdateHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -121,7 +225,7 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 
-		err := serverService.UpdateMetric(ctx, metric)
+		err := serverService.UpdateMetric(ctx, metric, addinfo.AddInfo{RemoteAddr: r.RemoteAddr})
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))
@@ -137,6 +241,34 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 	}
 }
 
+// UpdatesHandler возвращает HTTP-обработчик для массового обновления метрик в формате JSON.
+// Обработчик принимает массив метрик и сохраняет их все за один запрос.
+//
+// Пример запроса:
+//
+//	POST /updates HTTP/1.1
+//	Content-Type: application/json
+//
+//	[
+//	    {
+//	        "id": "Alloc",
+//	        "type": "gauge",
+//	        "value": 123.45
+//	    },
+//	    {
+//	        "id": "PollCount",
+//	        "type": "counter",
+//	        "delta": 1
+//	    }
+//	]
+//
+// Пример успешного ответа:
+//
+//	HTTP/1.1 200 OK
+//
+// В случае ошибки возвращает:
+//   - 400 Bad Request - некорректный запрос или валидация
+//   - 500 Internal Server Error - внутренняя ошибка сервера
 func UpdatesHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -151,7 +283,7 @@ func UpdatesHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 
-		err := serverService.UpdateMetrics(ctx, metrics)
+		err := serverService.UpdateMetrics(ctx, metrics, addinfo.AddInfo{RemoteAddr: r.RemoteAddr})
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))
@@ -167,6 +299,23 @@ func UpdatesHandler(serverService Server) http.HandlerFunc {
 	}
 }
 
+// GetValueURLHandler возвращает HTTP-обработчик для получения значения метрики через URL.
+// Обработчик извлекает параметры из URL и возвращает значение метрики в текстовом формате.
+//
+// Пример запроса:
+//
+//	GET /value/gauge/Alloc HTTP/1.1
+//
+// Пример успешного ответа:
+//
+//	HTTP/1.1 200 OK
+//	Content-Type: text/plain; charset=utf-8
+//
+//	123.45
+//
+// В случае ошибки возвращает:
+//   - 404 Not Found - метрика не найдена
+//   - 500 Internal Server Error - внутренняя ошибка сервера
 func GetValueURLHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -190,11 +339,26 @@ func GetValueURLHandler(serverService Server) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, fmt.Sprintf("%v", metric.GetValue()))
+		io.WriteString(w, metric.ValueStr)
 
 	}
 }
 
+// UpdateURLHandler возвращает HTTP-обработчик для обновления метрики через URL.
+// Обработчик извлекает параметры из URL, преобразует значения и сохраняет метрику.
+// Поддерживает URL формата: /update/{type}/{name}/{value}
+//
+// Пример запроса:
+//
+//	POST /update/gauge/Alloc/123.45 HTTP/1.1
+//
+// Пример успешного ответа:
+//
+//	HTTP/1.1 200 OK
+//
+// В случае ошибки возвращает:
+//   - 400 Bad Request - некорректный тип, имя или значение метрики
+//   - 500 Internal Server Error - внутренняя ошибка сервера
 func UpdateURLHandler(serverService Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -240,7 +404,7 @@ func UpdateURLHandler(serverService Server) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		err = serverService.UpdateMetric(ctx, metric)
+		err = serverService.UpdateMetric(ctx, metric, addinfo.AddInfo{RemoteAddr: r.RemoteAddr})
 		if err != nil {
 			logger.Log.Error("Error updating metrics", zap.Error(err))
 			w.WriteHeader(resolveHTTPStatus(err))

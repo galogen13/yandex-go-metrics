@@ -8,12 +8,15 @@ import (
 	"os"
 	"time"
 
+	"github.com/galogen13/yandex-go-metrics/internal/audit"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
+	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 	"go.uber.org/zap"
 )
 
+//go:generate mockgen -destination=mocks/storage_mock.go . Storage
 type Storage interface {
 	Update(ctx context.Context, metrics []*metrics.Metric) error
 	Insert(ctx context.Context, metrics []*metrics.Metric) error
@@ -25,12 +28,16 @@ type Storage interface {
 }
 
 type ServerService struct {
-	Storage Storage
-	Config  *config.ServerConfig
+	Storage      Storage
+	Config       *config.ServerConfig
+	AuditService *audit.AuditService
 }
 
-func NewServerService(config *config.ServerConfig, storage Storage) *ServerService {
-	return &ServerService{Config: config, Storage: storage}
+func NewServerService(config *config.ServerConfig, storage Storage, auditService *audit.AuditService) *ServerService {
+	return &ServerService{
+		Config:       config,
+		Storage:      storage,
+		AuditService: auditService}
 }
 
 func (serverService *ServerService) Start() error {
@@ -60,13 +67,13 @@ func (serverService *ServerService) Start() error {
 	return http.ListenAndServe(serverService.Config.Host, r)
 }
 
-func (serverService *ServerService) UpdateMetric(ctx context.Context, incomingMetric *metrics.Metric) error {
+func (serverService *ServerService) UpdateMetric(ctx context.Context, incomingMetric *metrics.Metric, addInfo addinfo.AddInfo) error {
 
-	return serverService.UpdateMetrics(ctx, []*metrics.Metric{incomingMetric})
+	return serverService.UpdateMetrics(ctx, []*metrics.Metric{incomingMetric}, addInfo)
 
 }
 
-func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingMetrics []*metrics.Metric) error {
+func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingMetrics []*metrics.Metric, addInfo addinfo.AddInfo) error {
 
 	IDs := make([]string, 0, len(incomingMetrics))
 	for _, incomingMetric := range incomingMetrics {
@@ -81,48 +88,34 @@ func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingM
 		return errUpdatingMetrics(err)
 	}
 
-	metricsUpdate := make(map[string]*metrics.Metric, len(incomingMetrics)/2+1)
-	metricsInsert := make(map[string]*metrics.Metric, len(incomingMetrics)/2+1)
+	metricsUpdate := make([]*metrics.Metric, 0, len(incomingMetrics)/2+1)
+	metricsInsert := make([]*metrics.Metric, 0, len(incomingMetrics)/2+1)
 
 	for _, incomingMetric := range incomingMetrics {
 
-		metric, ok := metricsInsert[incomingMetric.ID]
-		if ok {
-			metric.UpdateValue(incomingMetric.GetValue())
-			metricsInsert[metric.ID] = metric
-			continue
-		}
-
-		metric, ok = metricsUpdate[incomingMetric.ID]
-		if ok {
-			metric.UpdateValue(incomingMetric.GetValue())
-			metricsUpdate[metric.ID] = metric
-			continue
-		}
-
-		metric, ok = metricsFound[incomingMetric.ID]
+		metric, ok := metricsFound[incomingMetric.ID]
 		if ok {
 			err := metric.CompareTypes(incomingMetric.MType)
 			if err != nil {
 				return errUpdatingMetrics(err)
 			}
 			metric.UpdateValue(incomingMetric.GetValue())
-			metricsUpdate[metric.ID] = metric
+			metricsUpdate = append(metricsUpdate, metric)
 
 		} else {
-			metricsInsert[incomingMetric.ID] = incomingMetric
+			metricsInsert = append(metricsInsert, incomingMetric)
 		}
 
 	}
 
 	if len(metricsInsert) > 0 {
-		if err := serverService.Storage.Insert(ctx, metrics.GetMetricsFromMap(metricsInsert)); err != nil {
+		if err := serverService.Storage.Insert(ctx, metricsInsert); err != nil {
 			return errUpdatingMetrics(err)
 		}
 	}
 
 	if len(metricsUpdate) > 0 {
-		if err := serverService.Storage.Update(ctx, metrics.GetMetricsFromMap(metricsUpdate)); err != nil {
+		if err := serverService.Storage.Update(ctx, metricsUpdate); err != nil {
 			return errUpdatingMetrics(err)
 		}
 	}
@@ -133,6 +126,9 @@ func (serverService *ServerService) UpdateMetrics(ctx context.Context, incomingM
 			logger.Log.Info("cant save metrics to file on update", zap.Error(err))
 		}
 	}
+
+	auditLog := audit.NewAuditLog(metrics.GetMetricIDs(incomingMetrics), addInfo.RemoteAddr)
+	serverService.AuditService.Notify(auditLog)
 
 	return nil
 
@@ -155,14 +151,13 @@ func (serverService *ServerService) GetMetric(ctx context.Context, incomingMetri
 	return metric, nil
 }
 
-func (serverService *ServerService) GetAllMetricsValues(ctx context.Context) (map[string]any, error) {
+func (serverService *ServerService) GetAllMetrics(ctx context.Context) ([]*metrics.Metric, error) {
 
 	allMetrics, err := serverService.Storage.GetAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error getting all metrics: %w", err)
 	}
-	metricsValues := metrics.GetMetricsValues(allMetrics)
-	return metricsValues, nil
+	return allMetrics, nil
 
 }
 
