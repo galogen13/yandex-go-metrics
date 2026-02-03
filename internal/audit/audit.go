@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
@@ -16,19 +17,28 @@ import (
 )
 
 type AuditService struct {
-	Auditors []Auditor
+	auditors    []Auditor
+	muxAuditors sync.RWMutex
 }
 
 func NewAuditService() *AuditService {
-	return &AuditService{Auditors: []Auditor{}}
+	return &AuditService{
+		auditors: []Auditor{},
+	}
 }
 
 func (as *AuditService) Register(auditor Auditor) {
-	as.Auditors = append(as.Auditors, auditor)
+	as.muxAuditors.Lock()
+	defer as.muxAuditors.Unlock()
+	as.auditors = append(as.auditors, auditor)
 }
 
 func (as *AuditService) Notify(auditLog AuditLog) {
-	for _, auditor := range as.Auditors {
+	as.muxAuditors.RLock()
+	auditors := make([]Auditor, len(as.auditors))
+	copy(auditors, as.auditors)
+	as.muxAuditors.RUnlock()
+	for _, auditor := range auditors {
 		go auditor.Notify(auditLog)
 	}
 }
@@ -102,6 +112,7 @@ func NewURLAuditor(urlStr string) (*URLAuditor, error) {
 
 type FileAuditor struct {
 	filePath string
+	muxFile  sync.Mutex
 }
 
 func NewFileAuditor(filePath string) (*FileAuditor, error) {
@@ -111,7 +122,9 @@ func NewFileAuditor(filePath string) (*FileAuditor, error) {
 	return &FileAuditor{filePath: filePath}, nil
 }
 
-func (fileAuditor FileAuditor) Notify(auditLog AuditLog) {
+func (fileAuditor *FileAuditor) Notify(auditLog AuditLog) {
+	fileAuditor.muxFile.Lock()
+	defer fileAuditor.muxFile.Unlock()
 	file, err := os.OpenFile(fileAuditor.filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		logger.Log.Error("cannot open/create file", zap.Error(err))
