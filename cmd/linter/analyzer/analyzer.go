@@ -12,6 +12,11 @@ var PanicUseAnalyzer = &analysis.Analyzer{
 	Run:  run,
 }
 
+type codeContext struct {
+	packageName string
+	funcName    string
+}
+
 func run(pass *analysis.Pass) (any, error) {
 
 	isPanicCall := func(call *ast.CallExpr) {
@@ -39,14 +44,21 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 
 	for _, file := range pass.Files {
-		//packageName := file.Name.Name
+		cc := codeContext{
+			packageName: file.Name.Name,
+			funcName:    "",
+		}
 
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch x := node.(type) {
 			case *ast.CallExpr:
 				isPanicCall(x)
-				isExitCall(x)
-				isLogFatalCall(x)
+				if !isInMainPackage(cc) || !isInMainFunc(cc) {
+					isExitCall(x)
+					isLogFatalCall(x)
+				}
+			case *ast.FuncDecl:
+				cc.funcName = x.Name.Name
 			}
 			return true
 		})
@@ -70,4 +82,12 @@ func isLogFatalFunction(sel *ast.SelectorExpr) bool {
 		return true
 	}
 	return false
+}
+
+func isInMainFunc(cc codeContext) bool {
+	return cc.funcName == "main"
+}
+
+func isInMainPackage(cc codeContext) bool {
+	return cc.packageName == "main"
 }
