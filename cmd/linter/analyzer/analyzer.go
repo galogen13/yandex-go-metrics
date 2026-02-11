@@ -43,11 +43,12 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 	}
 
+	cc := codeContext{}
+
 	for _, file := range pass.Files {
-		cc := codeContext{
-			packageName: file.Name.Name,
-			funcName:    "",
-		}
+
+		cc.packageName = file.Name.Name
+		cc.funcName = ""
 
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch x := node.(type) {
