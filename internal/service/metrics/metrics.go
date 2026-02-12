@@ -27,6 +27,8 @@ var (
 // - Delta - значение, на которое изменяется метрика типа counter, если метрика типа gauge - не заполнено.
 // - Value - значение метрики типа gauge, если метрика типа counter - не заполнено.
 // - ValueStr - строковое представление значения метрики.
+//
+// generate:reset
 type Metric struct {
 	ID       string   `json:"id"`
 	MType    string   `json:"type"`
