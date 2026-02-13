@@ -15,6 +15,7 @@ import (
 
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"go.uber.org/zap"
+	"golang.org/x/tools/go/packages"
 )
 
 const resetGenerateComment = "// generate:reset"
@@ -33,7 +34,7 @@ func (v *{{.Name}}) Reset() {
 {{end}}
 `
 
-type Field struct {
+type FieldInfo struct {
 	Name      string
 	ResetCode string
 }
@@ -44,7 +45,7 @@ type StructInfo struct {
 	FilePath      string
 	OutputPath    string
 	HasUsersReset bool // Флаг, есть ли уже пользовательский метод Reset
-	Fields        []Field
+	Fields        []FieldInfo
 }
 
 type packageInfo struct {
@@ -111,75 +112,149 @@ func findProjectRoot() (string, error) {
 func scanPackages(rootDir string) ([]StructInfo, error) {
 	var structs []StructInfo
 
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+	cfg := &packages.Config{Dir: rootDir, Mode: packages.LoadFiles | packages.LoadTypes}
+	pkgs, err := packages.Load(cfg, "./...") // загружаем пакеты
+	if err != nil {
+		return nil, fmt.Errorf("error load packages: %w", err)
+	}
 
-		if info.IsDir() {
-			name := info.Name()
-			if strings.HasPrefix(name, ".") {
-				return filepath.SkipDir
-			}
-		}
+	for _, pkg := range pkgs {
+		fmt.Println(pkg.Dir)
+		fmt.Println(pkg.Name)
+		// pkg.TypesInfo — это аналог того, что лежит в pass.TypesInfo
+		// Теперь можно искать типы, как в предыдущих ответах
 
-		if !strings.HasSuffix(info.Name(), ".go") ||
-			strings.HasSuffix(info.Name(), "_test.go") ||
-			strings.HasSuffix(info.Name(), ".gen.go") ||
-			strings.HasSuffix(info.Name(), ".mock.go") {
-			return nil
-		}
+		for _, goFileName := range pkg.GoFiles {
 
-		fset := token.NewFileSet()
-		node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-		if err != nil {
-			return nil
-		}
-
-		packageName := node.Name.Name
-
-		ast.Inspect(node, func(n ast.Node) bool {
-			genDecl, ok := n.(*ast.GenDecl)
-			if !ok || genDecl.Tok != token.TYPE {
-				return true
+			if !strings.HasSuffix(goFileName, ".go") ||
+				strings.HasSuffix(goFileName, "_test.go") ||
+				strings.HasSuffix(goFileName, ".gen.go") ||
+				strings.HasSuffix(goFileName, ".mock.go") {
+				continue
 			}
 
-			for _, spec := range genDecl.Specs {
-				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-					if s, isStruct := typeSpec.Type.(*ast.StructType); isStruct {
-						if hasGenerateResetComment(genDecl) {
-							fields := []Field{}
-							for _, field := range s.Fields.List {
-								if len(field.Names) == 0 {
-									continue
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, goFileName, nil, parser.ParseComments)
+			if err != nil {
+				logger.Log.Error("parse file error", zap.String("fileName", goFileName), zap.Error(err))
+				continue
+			}
+
+			// packageName := node.Name.Name
+
+			ast.Inspect(node, func(n ast.Node) bool {
+				genDecl, ok := n.(*ast.GenDecl)
+				if !ok || genDecl.Tok != token.TYPE {
+					return true
+				}
+
+				for _, spec := range genDecl.Specs {
+					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+						if s, isStruct := typeSpec.Type.(*ast.StructType); isStruct {
+							if hasGenerateResetComment(genDecl) {
+								fields := []FieldInfo{}
+								for _, field := range s.Fields.List {
+									if len(field.Names) == 0 {
+										continue
+									}
+									fields = append(fields,
+										FieldInfo{
+											Name:      field.Names[0].Name,
+											ResetCode: getResetCode(field.Names[0].Name, field.Type),
+										})
+
 								}
-								fields = append(fields,
-									Field{
-										Name:      field.Names[0].Name,
-										ResetCode: getResetCode(field.Names[0].Name, field.Type),
-									})
 
+								// structInfo := StructInfo{
+								// 	Name:       typeSpec.Name.Name,
+								// 	Package:    packageName,
+								// 	FilePath:   path,
+								// 	OutputPath: filepath.Dir(path),
+								// 	Fields:     fields,
+								// }
+								// structInfo.HasUsersReset = hasResetMethod(node, typeSpec.Name.Name)
+
+								// structs = append(structs, structInfo)
 							}
-
-							structInfo := StructInfo{
-								Name:       typeSpec.Name.Name,
-								Package:    packageName,
-								FilePath:   path,
-								OutputPath: filepath.Dir(path),
-								Fields:     fields,
-							}
-							structInfo.HasUsersReset = hasResetMethod(node, typeSpec.Name.Name)
-
-							structs = append(structs, structInfo)
 						}
 					}
 				}
-			}
-			return true
-		})
+				return true
+			})
 
-		return nil
-	})
+		}
+
+	}
+
+	// err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// 	if info.IsDir() {
+	// 		name := info.Name()
+	// 		if strings.HasPrefix(name, ".") {
+	// 			return filepath.SkipDir
+	// 		}
+	// 	}
+
+	// 	if !strings.HasSuffix(info.Name(), ".go") ||
+	// 		strings.HasSuffix(info.Name(), "_test.go") ||
+	// 		strings.HasSuffix(info.Name(), ".gen.go") ||
+	// 		strings.HasSuffix(info.Name(), ".mock.go") {
+	// 		return nil
+	// 	}
+
+	// 	fset := token.NewFileSet()
+	// 	node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	// 	if err != nil {
+	// 		return nil
+	// 	}
+
+	// 	packageName := node.Name.Name
+
+	// 	ast.Inspect(node, func(n ast.Node) bool {
+	// 		genDecl, ok := n.(*ast.GenDecl)
+	// 		if !ok || genDecl.Tok != token.TYPE {
+	// 			return true
+	// 		}
+
+	// 		for _, spec := range genDecl.Specs {
+	// 			if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+	// 				if s, isStruct := typeSpec.Type.(*ast.StructType); isStruct {
+	// 					if hasGenerateResetComment(genDecl) {
+	// 						fields := []FieldInfo{}
+	// 						for _, field := range s.Fields.List {
+	// 							if len(field.Names) == 0 {
+	// 								continue
+	// 							}
+	// 							fields = append(fields,
+	// 								FieldInfo{
+	// 									Name:      field.Names[0].Name,
+	// 									ResetCode: getResetCode(field.Names[0].Name, field.Type),
+	// 								})
+
+	// 						}
+
+	// 						structInfo := StructInfo{
+	// 							Name:       typeSpec.Name.Name,
+	// 							Package:    packageName,
+	// 							FilePath:   path,
+	// 							OutputPath: filepath.Dir(path),
+	// 							Fields:     fields,
+	// 						}
+	// 						structInfo.HasUsersReset = hasResetMethod(node, typeSpec.Name.Name)
+
+	// 						structs = append(structs, structInfo)
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 		return true
+	// 	})
+
+	// 	return nil
+	// })
 
 	if err != nil {
 		return nil, err
@@ -297,6 +372,24 @@ func getResetCode(name string, expr ast.Expr) string {
 		// // Для массивов с фиксированной длиной
 		// return fmt.Sprintf("[%s]%s", t.Len, getTypeName(t.Elt))
 	case *ast.SelectorExpr:
+
+		// if obj, ok := pass.TypesInfo.Uses[t.Sel]; ok {
+		// 	// Проверяем, является ли это типом
+		// 	typeName, ok := obj.(*types.TypeName)
+		// 	if !ok {
+		// 		// Это не тип (может быть переменная или функция)
+		// 		return
+		// 	}
+
+		// 	// Получаем лежащий в основе тип (Underlying)
+		// 	underlying := typeName.Type().Underlying()
+
+		// 	// Проверяем, структура ли это
+		// 	if _, ok := underlying.(*types.Struct); ok {
+		// 		fmt.Println("Это структура!")
+		// 	}
+		// }
+
 		if ident, ok := t.X.(*ast.Ident); ok {
 			return "v." + name + " = " + getZeroValue(ident.Name+"."+t.Sel.Name)
 		}
