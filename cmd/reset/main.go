@@ -40,9 +40,9 @@ type FieldInfo struct {
 }
 
 type StructInfo struct {
-	Name          string
-	Package       string
-	FilePath      string
+	Name    string
+	Package string
+	//FilePath      string
 	OutputPath    string
 	HasUsersReset bool // Флаг, есть ли уже пользовательский метод Reset
 	Fields        []FieldInfo
@@ -140,8 +140,6 @@ func scanPackages(rootDir string) ([]StructInfo, error) {
 				continue
 			}
 
-			// packageName := node.Name.Name
-
 			ast.Inspect(node, func(n ast.Node) bool {
 				genDecl, ok := n.(*ast.GenDecl)
 				if !ok || genDecl.Tok != token.TYPE {
@@ -165,16 +163,16 @@ func scanPackages(rootDir string) ([]StructInfo, error) {
 
 								}
 
-								// structInfo := StructInfo{
-								// 	Name:       typeSpec.Name.Name,
-								// 	Package:    packageName,
-								// 	FilePath:   path,
-								// 	OutputPath: filepath.Dir(path),
-								// 	Fields:     fields,
-								// }
-								// structInfo.HasUsersReset = hasResetMethod(node, typeSpec.Name.Name)
+								structInfo := StructInfo{
+									Name:    typeSpec.Name.Name,
+									Package: pkg.Name,
+									//FilePath:   pkg.Dir,
+									OutputPath: pkg.Dir, //filepath.Dir(pkg.Dir),
+									Fields:     fields,
+								}
+								structInfo.HasUsersReset = hasResetMethod(node, typeSpec.Name.Name)
 
-								// structs = append(structs, structInfo)
+								structs = append(structs, structInfo)
 							}
 						}
 					}
