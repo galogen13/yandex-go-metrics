@@ -101,7 +101,7 @@ func findProjectRoot() (string, error) {
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("go.mod не найден")
+			return "", fmt.Errorf("go.mod not found")
 		}
 		dir = parent
 	}
@@ -180,10 +180,6 @@ func scanPackages(rootDir string) ([]StructInfo, error) {
 
 		}
 
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	return structs, nil
