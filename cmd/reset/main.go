@@ -7,6 +7,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"log"
 	"os"
 	"path/filepath"
@@ -112,15 +113,13 @@ func findProjectRoot() (string, error) {
 func scanPackages(rootDir string) ([]StructInfo, error) {
 	var structs []StructInfo
 
-	cfg := &packages.Config{Dir: rootDir, Mode: packages.LoadFiles | packages.LoadTypes}
+	cfg := &packages.Config{Dir: rootDir, Mode: packages.LoadFiles | packages.LoadAllSyntax}
 	pkgs, err := packages.Load(cfg, "./...") // загружаем пакеты
 	if err != nil {
 		return nil, fmt.Errorf("error load packages: %w", err)
 	}
 
 	for _, pkg := range pkgs {
-		fmt.Println(pkg.Dir)
-		fmt.Println(pkg.Name)
 		// pkg.TypesInfo — это аналог того, что лежит в pass.TypesInfo
 		// Теперь можно искать типы, как в предыдущих ответах
 
@@ -155,12 +154,16 @@ func scanPackages(rootDir string) ([]StructInfo, error) {
 									if len(field.Names) == 0 {
 										continue
 									}
+									resetCode, err := getResetCode(field.Names[0].Name, field.Type, pkgs)
+									if err != nil {
+										logger.Log.Info("no reset code for field", zap.Error(err))
+										continue
+									}
 									fields = append(fields,
 										FieldInfo{
 											Name:      field.Names[0].Name,
-											ResetCode: getResetCode(field.Names[0].Name, field.Type),
+											ResetCode: resetCode,
 										})
-
 								}
 
 								structInfo := StructInfo{
@@ -351,57 +354,49 @@ func generateResetFile(pkgPath string, structs []StructInfo) error {
 	return nil
 }
 
-func getResetCode(name string, expr ast.Expr) string {
+func getResetCode(name string, expr ast.Expr, pkgs []*packages.Package) (string, error) {
 
 	switch t := expr.(type) {
 	case *ast.Ident:
-		return "v." + name + " = " + getZeroValue(t.Name)
+		return getSimpleResetCode(name, t.Name), nil
 	case *ast.StarExpr:
+		rCode, err := getResetCode(name, t.X, pkgs)
+		if err != nil {
+			return "", fmt.Errorf("cannot parse star expr: %w", err)
+		}
 		var buf bytes.Buffer
 		buf.WriteString("if v." + name + " != nil {\n")
-		buf.WriteString("\t*" + getResetCode(name, t.X) + "\n")
+		buf.WriteString("\t*" + rCode + "\n")
 		buf.WriteString("}\n")
-		return buf.String()
+		return buf.String(), nil
 	case *ast.ArrayType:
-		return "v." + name + " = v." + name + "[:0]"
-		// if t.Len == nil {
-		// 	return "[]" + getTypeName(t.Elt)
-		// }
-		// // Для массивов с фиксированной длиной
-		// return fmt.Sprintf("[%s]%s", t.Len, getTypeName(t.Elt))
+		return "v." + name + " = v." + name + "[:0]", nil
 	case *ast.SelectorExpr:
+		if pkgIdent, ok := t.X.(*ast.Ident); ok {
+			pkg, err := pkgByPackageName(pkgIdent.Name, pkgs)
+			if err != nil {
+				return "", fmt.Errorf("cannot find selector package: %w", err)
+			}
+			if obj, ok := pkg.TypesInfo.Uses[t.Sel]; ok {
+				if typeName, ok := obj.(*types.TypeName); ok {
+					underlying := typeName.Type().Underlying()
+					switch underlying.(type) {
+					case *types.Struct:
+						return getResetCodeStruct(name), nil
+					}
 
-		// if obj, ok := pass.TypesInfo.Uses[t.Sel]; ok {
-		// 	// Проверяем, является ли это типом
-		// 	typeName, ok := obj.(*types.TypeName)
-		// 	if !ok {
-		// 		// Это не тип (может быть переменная или функция)
-		// 		return
-		// 	}
-
-		// 	// Получаем лежащий в основе тип (Underlying)
-		// 	underlying := typeName.Type().Underlying()
-
-		// 	// Проверяем, структура ли это
-		// 	if _, ok := underlying.(*types.Struct); ok {
-		// 		fmt.Println("Это структура!")
-		// 	}
-		// }
-
-		if ident, ok := t.X.(*ast.Ident); ok {
-			return "v." + name + " = " + getZeroValue(ident.Name+"."+t.Sel.Name)
+				} else {
+					return "", fmt.Errorf("not a struct: %s", pkgIdent.Name+"."+t.Sel.Name)
+				}
+			}
 		}
-		return ""
+		return "", fmt.Errorf("cannot parse selector")
 	case *ast.MapType:
-		return "clear(v." + name + ")"
+		return "clear(v." + name + ")", nil
 	case *ast.StructType:
-		var buf bytes.Buffer
-		buf.WriteString("if resetter, ok := v." + name + ".(interface{ Reset() }); ok && v." + name + " != nil {\n")
-		buf.WriteString("\tresetter.Reset()\n")
-		buf.WriteString("}")
-		return buf.String()
+		return getResetCodeStruct(name), nil
 	default:
-		return "v." + name + " = nil"
+		return "", fmt.Errorf("no reset code for expr")
 	}
 }
 
@@ -418,7 +413,6 @@ func getZeroValue(typeName string) string {
 	case "string":
 		return "\"\""
 	default:
-		// Для сложных типов используем nil или пустую инициализацию
 		if strings.HasPrefix(typeName, "[]") ||
 			strings.HasPrefix(typeName, "map") ||
 			strings.HasPrefix(typeName, "*") ||
@@ -426,7 +420,27 @@ func getZeroValue(typeName string) string {
 			strings.HasPrefix(typeName, "func") {
 			return "nil"
 		}
-		// Для структур и других типов
 		return typeName + "{}"
 	}
+}
+
+func pkgByPackageName(name string, pkgs []*packages.Package) (*packages.Package, error) {
+	for _, pkg := range pkgs {
+		if pkg.Name == name {
+			return pkg, nil
+		}
+	}
+	return nil, fmt.Errorf("package not foud by name %s", name)
+}
+
+func getResetCodeStruct(name string) string {
+	var buf bytes.Buffer
+	buf.WriteString("if resetter, ok := v." + name + ".(interface{ Reset() }); ok && v." + name + " != nil {\n")
+	buf.WriteString("\tresetter.Reset()\n")
+	buf.WriteString("}")
+	return buf.String()
+}
+
+func getSimpleResetCode(name string, typeName string) string {
+	return "v." + name + " = " + getZeroValue(typeName)
 }
