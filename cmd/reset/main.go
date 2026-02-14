@@ -40,9 +40,8 @@ type FieldInfo struct {
 }
 
 type StructInfo struct {
-	Name    string
-	Package string
-	//FilePath      string
+	Name          string
+	Package       string
 	OutputPath    string
 	HasUsersReset bool // Флаг, есть ли уже пользовательский метод Reset
 	Fields        []FieldInfo
@@ -153,7 +152,7 @@ func scanPackages(rootDir string) ([]StructInfo, error) {
 									}
 									resetCode, err := getResetCode(field.Names[0].Name, field.Type)
 									if err != nil {
-										logger.Log.Info("no reset code for field", zap.Error(err))
+										logger.Log.Info("no reset code for field", zap.String("field", field.Names[0].Name), zap.Error(err))
 										continue
 									}
 									fields = append(fields,
