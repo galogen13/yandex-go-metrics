@@ -7,7 +7,6 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
-	"go/types"
 	"log"
 	"os"
 	"path/filepath"
@@ -113,15 +112,13 @@ func findProjectRoot() (string, error) {
 func scanPackages(rootDir string) ([]StructInfo, error) {
 	var structs []StructInfo
 
-	cfg := &packages.Config{Dir: rootDir, Mode: packages.LoadFiles | packages.LoadAllSyntax}
-	pkgs, err := packages.Load(cfg, "./...") // загружаем пакеты
+	cfg := &packages.Config{Dir: rootDir, Mode: packages.LoadFiles}
+	pkgs, err := packages.Load(cfg, "./...")
 	if err != nil {
 		return nil, fmt.Errorf("error load packages: %w", err)
 	}
 
 	for _, pkg := range pkgs {
-		// pkg.TypesInfo — это аналог того, что лежит в pass.TypesInfo
-		// Теперь можно искать типы, как в предыдущих ответах
 
 		for _, goFileName := range pkg.GoFiles {
 
@@ -154,7 +151,7 @@ func scanPackages(rootDir string) ([]StructInfo, error) {
 									if len(field.Names) == 0 {
 										continue
 									}
-									resetCode, err := getResetCode(field.Names[0].Name, field.Type, pkgs)
+									resetCode, err := getResetCode(field.Names[0].Name, field.Type)
 									if err != nil {
 										logger.Log.Info("no reset code for field", zap.Error(err))
 										continue
@@ -167,10 +164,9 @@ func scanPackages(rootDir string) ([]StructInfo, error) {
 								}
 
 								structInfo := StructInfo{
-									Name:    typeSpec.Name.Name,
-									Package: pkg.Name,
-									//FilePath:   pkg.Dir,
-									OutputPath: pkg.Dir, //filepath.Dir(pkg.Dir),
+									Name:       typeSpec.Name.Name,
+									Package:    pkg.Name,
+									OutputPath: pkg.Dir,
 									Fields:     fields,
 								}
 								structInfo.HasUsersReset = hasResetMethod(node, typeSpec.Name.Name)
@@ -186,76 +182,6 @@ func scanPackages(rootDir string) ([]StructInfo, error) {
 		}
 
 	}
-
-	// err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	if info.IsDir() {
-	// 		name := info.Name()
-	// 		if strings.HasPrefix(name, ".") {
-	// 			return filepath.SkipDir
-	// 		}
-	// 	}
-
-	// 	if !strings.HasSuffix(info.Name(), ".go") ||
-	// 		strings.HasSuffix(info.Name(), "_test.go") ||
-	// 		strings.HasSuffix(info.Name(), ".gen.go") ||
-	// 		strings.HasSuffix(info.Name(), ".mock.go") {
-	// 		return nil
-	// 	}
-
-	// 	fset := token.NewFileSet()
-	// 	node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-	// 	if err != nil {
-	// 		return nil
-	// 	}
-
-	// 	packageName := node.Name.Name
-
-	// 	ast.Inspect(node, func(n ast.Node) bool {
-	// 		genDecl, ok := n.(*ast.GenDecl)
-	// 		if !ok || genDecl.Tok != token.TYPE {
-	// 			return true
-	// 		}
-
-	// 		for _, spec := range genDecl.Specs {
-	// 			if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-	// 				if s, isStruct := typeSpec.Type.(*ast.StructType); isStruct {
-	// 					if hasGenerateResetComment(genDecl) {
-	// 						fields := []FieldInfo{}
-	// 						for _, field := range s.Fields.List {
-	// 							if len(field.Names) == 0 {
-	// 								continue
-	// 							}
-	// 							fields = append(fields,
-	// 								FieldInfo{
-	// 									Name:      field.Names[0].Name,
-	// 									ResetCode: getResetCode(field.Names[0].Name, field.Type),
-	// 								})
-
-	// 						}
-
-	// 						structInfo := StructInfo{
-	// 							Name:       typeSpec.Name.Name,
-	// 							Package:    packageName,
-	// 							FilePath:   path,
-	// 							OutputPath: filepath.Dir(path),
-	// 							Fields:     fields,
-	// 						}
-	// 						structInfo.HasUsersReset = hasResetMethod(node, typeSpec.Name.Name)
-
-	// 						structs = append(structs, structInfo)
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 		return true
-	// 	})
-
-	// 	return nil
-	// })
 
 	if err != nil {
 		return nil, err
@@ -354,13 +280,13 @@ func generateResetFile(pkgPath string, structs []StructInfo) error {
 	return nil
 }
 
-func getResetCode(name string, expr ast.Expr, pkgs []*packages.Package) (string, error) {
+func getResetCode(name string, expr ast.Expr) (string, error) {
 
 	switch t := expr.(type) {
 	case *ast.Ident:
 		return getSimpleResetCode(name, t.Name), nil
 	case *ast.StarExpr:
-		rCode, err := getResetCode(name, t.X, pkgs)
+		rCode, err := getResetCode(name, t.X)
 		if err != nil {
 			return "", fmt.Errorf("cannot parse star expr: %w", err)
 		}
@@ -371,26 +297,6 @@ func getResetCode(name string, expr ast.Expr, pkgs []*packages.Package) (string,
 		return buf.String(), nil
 	case *ast.ArrayType:
 		return "v." + name + " = v." + name + "[:0]", nil
-	case *ast.SelectorExpr:
-		if pkgIdent, ok := t.X.(*ast.Ident); ok {
-			pkg, err := pkgByPackageName(pkgIdent.Name, pkgs)
-			if err != nil {
-				return "", fmt.Errorf("cannot find selector package: %w", err)
-			}
-			if obj, ok := pkg.TypesInfo.Uses[t.Sel]; ok {
-				if typeName, ok := obj.(*types.TypeName); ok {
-					underlying := typeName.Type().Underlying()
-					switch underlying.(type) {
-					case *types.Struct:
-						return getResetCodeStruct(name), nil
-					}
-
-				} else {
-					return "", fmt.Errorf("not a struct: %s", pkgIdent.Name+"."+t.Sel.Name)
-				}
-			}
-		}
-		return "", fmt.Errorf("cannot parse selector")
 	case *ast.MapType:
 		return "clear(v." + name + ")", nil
 	case *ast.StructType:
@@ -413,24 +319,8 @@ func getZeroValue(typeName string) string {
 	case "string":
 		return "\"\""
 	default:
-		if strings.HasPrefix(typeName, "[]") ||
-			strings.HasPrefix(typeName, "map") ||
-			strings.HasPrefix(typeName, "*") ||
-			strings.HasPrefix(typeName, "chan") ||
-			strings.HasPrefix(typeName, "func") {
-			return "nil"
-		}
-		return typeName + "{}"
+		return "nil"
 	}
-}
-
-func pkgByPackageName(name string, pkgs []*packages.Package) (*packages.Package, error) {
-	for _, pkg := range pkgs {
-		if pkg.Name == name {
-			return pkg, nil
-		}
-	}
-	return nil, fmt.Errorf("package not foud by name %s", name)
 }
 
 func getResetCodeStruct(name string) string {
