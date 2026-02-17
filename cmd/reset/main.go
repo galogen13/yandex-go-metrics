@@ -64,7 +64,6 @@ func main() {
 		log.Fatalf("Cannot found project root directory: %v\n", err)
 	}
 
-	// Сканируем все пакеты и находим структуры с комментарием // generate:reset
 	structs, err := scanPackages(rootDir)
 	if err != nil {
 		log.Fatalf("Cannot scan packages: %v\n", err)
@@ -122,9 +121,7 @@ func scanPackages(rootDir string) ([]StructInfo, error) {
 		for _, goFileName := range pkg.GoFiles {
 
 			if !strings.HasSuffix(goFileName, ".go") ||
-				strings.HasSuffix(goFileName, "_test.go") ||
-				strings.HasSuffix(goFileName, ".gen.go") ||
-				strings.HasSuffix(goFileName, ".mock.go") {
+				strings.HasSuffix(goFileName, ".gen.go") {
 				continue
 			}
 
