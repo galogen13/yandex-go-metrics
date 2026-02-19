@@ -4,7 +4,6 @@
 BENCH_PATH=./internal/service/server
 GOBASE=$(shell pwd)
 
-
 # Запуск бенчмарков
 bench:
 	echo "Benching..."
@@ -47,3 +46,20 @@ pprof-compare-web:
 
 pprof-compare:
 	go tool pprof -top -diff_base=profiles/base.pprof profiles/result.pprof
+
+.PHONY: run-server run-agent run-all
+
+BUILD_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_DATE ?= $(shell date +'%Y-%m-%d_%H:%M:%S')
+BUILD_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+LDFLAGS := -ldflags "-X 'main.buildVersion=$(BUILD_VERSION)' -X 'main.buildDate=$(BUILD_DATE)' -X 'main.buildCommit=$(BUILD_COMMIT)'"
+
+run-server:
+	go run $(LDFLAGS) $(GOBASE)/cmd/server
+
+run-agent:
+	go run $(LDFLAGS) $(GOBASE)/cmd/agent
+
+run-all: 
+	build-server build-agent

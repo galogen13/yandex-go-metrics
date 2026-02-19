@@ -74,6 +74,8 @@ const (
 )
 
 // Agent - структура агента
+//
+// generate:reset
 type Agent struct {
 	// metrics - слайс метрик, собранных агентом
 	metrics        []*metrics.Metric
