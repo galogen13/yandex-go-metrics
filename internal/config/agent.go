@@ -12,6 +12,7 @@ type AgentConfig struct {
 	PollInterval   int    `env:"POLL_INTERVAL"`   // количество секунд между сборами значений метрик
 	Key            string `env:"KEY"`             // ключ
 	RateLimit      int    `env:"RATE_LIMIT"`      // максимальное количество горутин, одновременно отправляющих данные на сервер
+	CryptoKeyPath  string `env:"CRYPTO_KEY"`      // путь к публичному ключу
 }
 
 func GetAgentConfig() (AgentConfig, error) {
@@ -28,6 +29,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	pollInterval := flag.Int("p", 2, "poll interval, seconds")
 	key := flag.String("k", "", "secret key")
 	rateLimit := flag.Int("l", 1, "rate limit")
+	cryptoKeyPath := flag.String("crypto-key", "", "crypto key path")
 	flag.Parse()
 
 	if cfg.Host == "" {
@@ -48,6 +50,10 @@ func GetAgentConfig() (AgentConfig, error) {
 
 	if cfg.RateLimit == 0 {
 		cfg.RateLimit = *rateLimit
+	}
+
+	if cfg.CryptoKeyPath == "" {
+		cfg.CryptoKeyPath = *cryptoKeyPath
 	}
 
 	return cfg, nil

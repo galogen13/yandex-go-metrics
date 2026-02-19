@@ -59,6 +59,7 @@ import (
 
 	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
+	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/retry"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
@@ -85,6 +86,7 @@ type Agent struct {
 	config config.AgentConfig
 	// PollCount - метрика-счетчик, которая накапливает количество попыток сбора метрик из пакета runtime
 	PollCount int64
+	encryptor *crypto.Encryptor
 }
 
 func (agent *Agent) increasePollСounter() {
@@ -102,9 +104,13 @@ func (agent *Agent) decreasePollCounter(decrementer int64) {
 }
 
 // Start иницииализирует агента, запускает таймеры сбора метрик и их отправки на сервер.
-func Start(config config.AgentConfig) {
+func Start(config config.AgentConfig) error {
 
-	agent := NewAgent(config)
+	agent, err := NewAgent(config)
+
+	if err != nil {
+		return fmt.Errorf("cannot start agent: %w", err)
+	}
 
 	logger.Log.Info("starting agent",
 		zap.String("Host", config.Host),
@@ -141,12 +147,18 @@ func (agent *Agent) startSendWorker(jobs <-chan any) {
 }
 
 // NewAgent инициализирует структуру агента с параметрами настройки
-func NewAgent(agentConfig config.AgentConfig) *Agent {
+func NewAgent(agentConfig config.AgentConfig) (*Agent, error) {
+	encryptor, err := crypto.NewEncryptor(agentConfig.CryptoKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot initialize encryptor: %w", err)
+	}
 	return &Agent{
-		config:         agentConfig,
-		metrics:        []*metrics.Metric{},
-		muxMetrics:     &sync.Mutex{},
-		muxPollCounter: &sync.Mutex{}}
+			config:         agentConfig,
+			metrics:        []*metrics.Metric{},
+			muxMetrics:     &sync.Mutex{},
+			muxPollCounter: &sync.Mutex{},
+			encryptor:      encryptor},
+		nil
 }
 
 func (agent *Agent) updateMetrics() {
