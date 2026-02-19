@@ -276,7 +276,7 @@ func getResetCode(name string, expr ast.Expr) (string, error) {
 
 	switch t := expr.(type) {
 	case *ast.Ident:
-		return getSimpleResetCode(name, t.Name), nil
+		return getSimpleResetCode(name, t), nil
 	case *ast.StarExpr:
 		rCode, err := getResetCode(name, t.X)
 		if err != nil {
@@ -293,9 +293,8 @@ func getResetCode(name string, expr ast.Expr) (string, error) {
 		return "clear(v." + name + ")", nil
 	case *ast.StructType:
 		return getResetCodeStruct(name), nil
-	default:
-		return "", fmt.Errorf("no reset code for expr")
 	}
+	return "", fmt.Errorf("no reset code for expr")
 }
 
 // getZeroValue возвращает zero value для типа
@@ -323,6 +322,19 @@ func getResetCodeStruct(name string) string {
 	return buf.String()
 }
 
-func getSimpleResetCode(name string, typeName string) string {
-	return "v." + name + " = " + getZeroValue(typeName)
+func getSimpleResetCode(name string, t *ast.Ident) string {
+	return "v." + name + " = " + getIdentResetCode(t)
+}
+
+func getIdentResetCode(t *ast.Ident) string {
+	if t.Obj == nil { // простой тип
+		return getZeroValue(t.Name)
+	} else {
+		if tc, ok := t.Obj.Decl.(*ast.TypeSpec); ok {
+			if ident, ok := tc.Type.(*ast.Ident); ok {
+				return getIdentResetCode(ident)
+			}
+		}
+	}
+	return "nil"
 }

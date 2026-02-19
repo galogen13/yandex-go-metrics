@@ -11,9 +11,12 @@ import (
 	"strconv"
 )
 
+type MetricType string
+
 const (
-	Counter = "counter"
-	Gauge   = "gauge"
+	Counter MetricType = "counter"
+	Gauge   MetricType = "gauge"
+	NoType  MetricType = ""
 )
 
 var (
@@ -30,15 +33,15 @@ var (
 //
 // generate:reset
 type Metric struct {
-	ID       string   `json:"id"`
-	MType    string   `json:"type"`
-	Delta    *int64   `json:"delta,omitempty"`
-	Value    *float64 `json:"value,omitempty"`
-	ValueStr string   `json:"-"`
+	ID       string     `json:"id"`
+	MType    MetricType `json:"type"`
+	Delta    *int64     `json:"delta,omitempty"`
+	Value    *float64   `json:"value,omitempty"`
+	ValueStr string     `json:"-"`
 }
 
 // NewMetrics создает новый экземпляр метрики по идентификатору и типу метрики
-func NewMetrics(id string, mType string) *Metric {
+func NewMetrics(id string, mType MetricType) *Metric {
 	metric := Metric{}
 	metric.ID = id
 	metric.MType = mType
@@ -121,7 +124,7 @@ func (metric Metric) Check(checkValue bool) error {
 }
 
 // CompareTypes сравнивает входящий тип с текущим. Если типы не равны - возвращает ошибку.
-func (metric Metric) CompareTypes(mType string) error {
+func (metric Metric) CompareTypes(mType MetricType) error {
 	if metric.MType != mType {
 		return fmt.Errorf("%w: metric type does not match incoming metric type. expected: %s, have: %s", ErrMetricValidation, metric.MType, mType)
 	}

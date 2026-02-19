@@ -324,7 +324,9 @@ func GetValueURLHandler(serverService Server) http.HandlerFunc {
 		w.Header().Set("Content-Type", respContentTypeTextPlain)
 
 		mID := chi.URLParam(r, "metrics")
-		mType := chi.URLParam(r, "mType")
+		mTypeParam := chi.URLParam(r, "mType")
+
+		mType := metrics.MetricType(mTypeParam)
 
 		metric := metrics.NewMetrics(mID, mType)
 
@@ -366,7 +368,7 @@ func UpdateURLHandler(serverService Server) http.HandlerFunc {
 
 		w.Header().Add("Content-type", respContentTypeTextPlain)
 
-		metricType := chi.URLParam(r, "mType")
+		metricTypeParam := chi.URLParam(r, "mType")
 		metricID := chi.URLParam(r, "metrics")
 		value := chi.URLParam(r, "value")
 
@@ -374,6 +376,8 @@ func UpdateURLHandler(serverService Server) http.HandlerFunc {
 			valueConverted any
 			err            error
 		)
+
+		metricType := metrics.MetricType(metricTypeParam)
 
 		switch metricType {
 		case metrics.Counter:
@@ -391,7 +395,7 @@ func UpdateURLHandler(serverService Server) http.HandlerFunc {
 				return
 			}
 		default:
-			logger.Log.Error("Incorrect metric type", zap.String("mType", metricType))
+			logger.Log.Error("Incorrect metric type", zap.String("mType", metricTypeParam))
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

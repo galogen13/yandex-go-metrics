@@ -52,7 +52,7 @@ func TestPoolPut(t *testing.T) {
 		resettedMetric := p.Get()
 
 		assert.Equal(t, resettedMetric.ID, "")
-		assert.Equal(t, resettedMetric.MType, "")
+		assert.Equal(t, resettedMetric.MType, metrics.NoType)
 		assert.Equal(t, *resettedMetric.Value, 0.0)
 		assert.Nil(t, resettedMetric.Delta)
 		assert.Equal(t, resettedMetric.ValueStr, "")
@@ -76,7 +76,7 @@ func TestPoolReuse(t *testing.T) {
 		assert.Equal(t, obj1, obj2)
 
 		assert.Equal(t, obj2.ID, "")
-		assert.Equal(t, obj2.MType, "")
+		assert.Equal(t, obj2.MType, metrics.NoType)
 		assert.Equal(t, *obj2.Value, 0.0)
 		assert.Nil(t, obj2.Delta)
 		assert.Equal(t, obj2.ValueStr, "")
