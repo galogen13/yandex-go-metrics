@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 
+	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 )
@@ -46,6 +47,10 @@ func (m *mockServer) PingStorage(ctx context.Context) error {
 
 func (m *mockServer) Key() string {
 	return "test-key"
+}
+
+func (m *mockServer) Decryptor() *crypto.Decryptor {
+	return nil
 }
 
 // Example_metricsRouter демонстрирует создание и использование роутера метрик.

@@ -17,6 +17,7 @@ type ServerConfig struct {
 	Key                  string `env:"KEY"`
 	AuditFile            string `env:"AUDIT_FILE"`
 	AuditURL             string `env:"AUDIT_URL"`
+	CryptoKeyPath        string `env:"CRYPTO_KEY"` // путь к приватному ключу
 	UseDatabaseAsStorage bool
 	StoreOnUpdate        bool
 	StorePeriodically    bool
@@ -40,6 +41,7 @@ func GetServerConfig() (*ServerConfig, error) {
 	key := flag.String("k", "", "secret key")
 	auditFileFlag := flag.String("audit-file", "", "audit file path")
 	auditURLFlag := flag.String("audit-url", "", "audit servise URL")
+	cryptoKeyPath := flag.String("crypto-key", "", "crypto key path")
 	flag.Parse()
 
 	if cfg.Host == "" {
@@ -76,6 +78,10 @@ func GetServerConfig() (*ServerConfig, error) {
 
 	if cfg.AuditURL == "" {
 		cfg.AuditURL = *auditURLFlag
+	}
+
+	if cfg.CryptoKeyPath == "" {
+		cfg.CryptoKeyPath = *cryptoKeyPath
 	}
 
 	cfg.UseDatabaseAsStorage = (cfg.DatabaseDSN != "")

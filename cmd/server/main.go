@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/galogen13/yandex-go-metrics/internal/audit"
@@ -55,7 +56,10 @@ func run() error {
 
 	auditService := auditService(config)
 
-	serverService := server.NewServerService(config, mStorage, auditService)
+	serverService, err := server.NewServerService(config, mStorage, auditService)
+	if err != nil {
+		return fmt.Errorf("failed to create new server service: %w", err)
+	}
 
 	if err := serverService.Start(); err != nil {
 		return err

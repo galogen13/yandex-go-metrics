@@ -531,9 +531,15 @@ func (agent *Agent) sendMetrics() {
 		return
 	}
 
-	buf, err := compression.GzipCompress(bodyBytes)
+	compressed, err := compression.GzipCompress(bodyBytes)
 	if err != nil {
 		logger.Log.Error("error while gzip compress metrics", zap.Error(err))
+		return
+	}
+
+	body, err := agent.encryptor.Encrypt(compressed.Bytes())
+	if err != nil {
+		logger.Log.Error("failed to encrypt data", zap.Error(err))
 		return
 	}
 
@@ -547,10 +553,10 @@ func (agent *Agent) sendMetrics() {
 	req := client.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
-		SetBody(buf.Bytes())
+		SetBody(body)
 
 	if agent.config.Key != "" {
-		hash := validation.CalculateHMAC(buf.Bytes(), agent.config.Key)
+		hash := validation.CalculateHMAC(body, agent.config.Key)
 		req.SetHeader("HashSHA256", hash)
 	}
 

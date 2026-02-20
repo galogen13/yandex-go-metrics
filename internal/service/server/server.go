@@ -10,6 +10,7 @@ import (
 
 	"github.com/galogen13/yandex-go-metrics/internal/audit"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
+	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
@@ -31,13 +32,21 @@ type ServerService struct {
 	Storage      Storage
 	Config       *config.ServerConfig
 	AuditService *audit.AuditService
+	decryptor    *crypto.Decryptor
 }
 
-func NewServerService(config *config.ServerConfig, storage Storage, auditService *audit.AuditService) *ServerService {
+func NewServerService(config *config.ServerConfig, storage Storage, auditService *audit.AuditService) (*ServerService, error) {
+	decryptor, err := crypto.NewDecryptor(config.CryptoKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create decryptor: %w", err)
+	}
+
 	return &ServerService{
-		Config:       config,
-		Storage:      storage,
-		AuditService: auditService}
+			Config:       config,
+			Storage:      storage,
+			AuditService: auditService,
+			decryptor:    decryptor},
+		nil
 }
 
 func (serverService *ServerService) Start() error {
@@ -190,9 +199,11 @@ func (serverService *ServerService) restoreFromFile() {
 }
 
 func (serverService *ServerService) Key() string {
-
 	return serverService.Config.Key
+}
 
+func (serverService *ServerService) Decryptor() *crypto.Decryptor {
+	return serverService.decryptor
 }
 
 func (serverService *ServerService) restoreStorageFromFile(ctx context.Context, fileStoragePath string) error {

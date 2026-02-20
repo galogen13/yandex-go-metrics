@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/galogen13/yandex-go-metrics/internal/compression"
+	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/validation"
@@ -32,25 +33,28 @@ func metricsRouter(server handler.Server) *chi.Mux {
 
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/", logger.RequestLogger(
-			validation.HashValidation(server.Key(),
-				compression.GzipMiddleware(
-					handler.UpdateHandler(server)))))
+			crypto.DecryptMiddleware(server.Decryptor(),
+				validation.HashValidation(server.Key(),
+					compression.GzipMiddleware(
+						handler.UpdateHandler(server))))))
 		r.Post("/{mType}/{metrics}/{value}", logger.RequestLogger(
 			handler.UpdateURLHandler(server)))
 	})
 
 	r.Route("/updates", func(r chi.Router) {
 		r.Post("/", logger.RequestLogger(
-			validation.HashValidation(server.Key(),
-				compression.GzipMiddleware(
-					handler.UpdatesHandler(server)))))
+			crypto.DecryptMiddleware(server.Decryptor(),
+				validation.HashValidation(server.Key(),
+					compression.GzipMiddleware(
+						handler.UpdatesHandler(server))))))
 	})
 
 	r.Route("/value", func(r chi.Router) {
 		r.Post("/", logger.RequestLogger(
-			validation.HashValidation(server.Key(),
-				compression.GzipMiddleware(
-					handler.GetValueHandler(server)))))
+			crypto.DecryptMiddleware(server.Decryptor(),
+				validation.HashValidation(server.Key(),
+					compression.GzipMiddleware(
+						handler.GetValueHandler(server))))))
 		r.Get("/{mType}/{metrics}", logger.RequestLogger(handler.GetValueURLHandler(server)))
 	})
 
