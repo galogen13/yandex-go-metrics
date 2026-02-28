@@ -4,20 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
-	"github.com/caarlos0/env/v6"
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 type AgentConfig struct {
-	Host           string `env:"ADDRESS"`         // адрес сервера, на который будут отправляться метрики
-	ReportInterval int    `env:"REPORT_INTERVAL"` // количество секунд между отправками метрик на сервер
-	PollInterval   int    `env:"POLL_INTERVAL"`   // количество секунд между сборами значений метрик
-	Key            string `env:"KEY"`             // ключ
-	RateLimit      int    `env:"RATE_LIMIT"`      // максимальное количество горутин, одновременно отправляющих данные на сервер
-	CryptoKeyPath  string `env:"CRYPTO_KEY"`      // путь к публичному ключу
-	ConfigFile     string `env:"CONFIG"`
+	Host           string `json:"address" mapstructure:"address"`                 // адрес сервера, на который будут отправляться метрики
+	ReportInterval int    `json:"report_interval" mapstructure:"report_interval"` // количество секунд между отправками метрик на сервер
+	PollInterval   int    `json:"poll_interval" mapstructure:"poll_interval"`     // количество секунд между сборами значений метрик
+	Key            string `json:"key" mapstructure:"key"`                         // ключ
+	RateLimit      int    `json:"rate_limit" mapstructure:"rate_limit"`           // максимальное количество горутин, одновременно отправляющих данные на сервер
+	CryptoKeyPath  string `json:"crypto_key" mapstructure:"crypto_key"`           // путь к публичному ключу
 }
 
 type FileAgentConfig struct {
@@ -31,64 +31,61 @@ type FileAgentConfig struct {
 
 func GetAgentConfig() (AgentConfig, error) {
 
+	viper.SetDefault("address", "localhost:8080")
+	viper.SetDefault("report_interval", 10)
+	viper.SetDefault("poll_interval", 2)
+	viper.SetDefault("key", "secret_key")
+	viper.SetDefault("rate_limit", 1)
+	viper.SetDefault("crypto_key", "")
+	viper.SetDefault("config", "")
+
+	pflag.StringP("address", "a", viper.GetString("address"), "server address")
+	pflag.IntP("report-interval", "r", viper.GetInt("report_interval"), "report interval")
+	pflag.IntP("poll-interval", "p", viper.GetInt("poll_interval"), "poll interval")
+	pflag.IntP("rate-limit", "l", viper.GetInt("rate_limit"), "rate limit")
+	pflag.StringP("key", "k", viper.GetString("key"), "secret key")
+	pflag.String("crypto-key", viper.GetString("crypto_key"), "path to crypto key")
+	pflag.StringP("config", "c", viper.GetString("config"), "path to configuration file")
+	pflag.Parse()
+
+	configPath := os.Getenv("CONFIG")
+	if configPath == "" {
+		if f := pflag.Lookup("config"); f != nil {
+			configPath = f.Value.String()
+		}
+	}
+
+	if err := parseConfigFile(configPath); err != nil {
+		return AgentConfig{}, err
+	}
+
+	bindPFlags()
+
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	viper.AutomaticEnv()
+	viper.BindEnv("address", "ADDRESS")
+	viper.BindEnv("report_interval", "REPORT_INTERVAL")
+	viper.BindEnv("poll_interval", "POLL_INTERVAL")
+	viper.BindEnv("key", "KEY")
+	viper.BindEnv("rate_limit", "RATE_LIMIT")
+	viper.BindEnv("crypto_key", "CRYPTO_KEY")
+	viper.BindEnv("config", "CONFIG")
+
 	var cfg AgentConfig
 
-	err := env.Parse(&cfg)
-	if err != nil {
-		return cfg, err
-	}
-
-	hostAddress := flag.StringP("address", "a", "localhost:8080", "host address")
-	reportInterval := flag.IntP("report-interval", "r", 10, "report interval, seconds")
-	pollInterval := flag.IntP("poll-interval", "p", 2, "poll interval, seconds")
-	key := flag.StringP("key", "k", "", "secret key")
-	rateLimit := flag.IntP("rate-limit", "l", 1, "rate limit")
-	cryptoKeyPath := flag.String("crypto-key", "", "crypto key path")
-	configFile := flag.StringP("config", "c", "", "config file")
-	flag.Parse()
-
-	if cfg.Host == "" {
-		cfg.Host = *hostAddress
-	}
-
-	if cfg.ReportInterval == 0 {
-		cfg.ReportInterval = *reportInterval
-	}
-
-	if cfg.PollInterval == 0 {
-		cfg.PollInterval = *pollInterval
-	}
-
-	if cfg.Key == "" {
-		cfg.Key = *key
-	}
-
-	if cfg.RateLimit == 0 {
-		cfg.RateLimit = *rateLimit
-	}
-
-	if cfg.CryptoKeyPath == "" {
-		cfg.CryptoKeyPath = *cryptoKeyPath
-	}
-
-	if cfg.ConfigFile == "" {
-		cfg.ConfigFile = *configFile
-	}
-
-	err = cfg.parseConfigFile()
-	if err != nil {
+	if err := viper.Unmarshal(&cfg); err != nil {
 		return cfg, err
 	}
 
 	return cfg, nil
 }
 
-func (cfg *AgentConfig) parseConfigFile() error {
-	if cfg.ConfigFile == "" {
+func parseConfigFile(configPath string) error {
+	if configPath == "" {
 		return nil
 	}
 
-	file, err := os.Open(cfg.ConfigFile)
+	file, err := os.Open(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to open config file: %w", err)
 	}
@@ -101,37 +98,41 @@ func (cfg *AgentConfig) parseConfigFile() error {
 		return fmt.Errorf("failed to decode config file: %w", err)
 	}
 
-	if cfg.Host == "" {
-		cfg.Host = fileConfig.Host
+	if fileConfig.Host != "" {
+		viper.Set("address", fileConfig.Host)
 	}
-
-	if cfg.ReportInterval == 0 {
+	if fileConfig.ReportInterval != "" {
 		reportIntervalDuration, err := time.ParseDuration(fileConfig.ReportInterval)
 		if err != nil {
 			return fmt.Errorf("failed to parse ReportInterval duration: %w", err)
 		}
-		cfg.ReportInterval = int(reportIntervalDuration.Seconds())
+		viper.Set("report_interval", int(reportIntervalDuration.Seconds()))
 	}
-
-	if cfg.PollInterval == 0 {
+	if fileConfig.PollInterval != "" {
 		pollIntervalDuration, err := time.ParseDuration(fileConfig.PollInterval)
 		if err != nil {
 			return fmt.Errorf("failed to parse PollInterval duration: %w", err)
 		}
-		cfg.PollInterval = int(pollIntervalDuration.Seconds())
+		viper.Set("poll_interval", int(pollIntervalDuration.Seconds()))
 	}
-
-	if cfg.Key == "" {
-		cfg.Key = fileConfig.Key
+	if fileConfig.Key != "" {
+		viper.Set("key", fileConfig.Key)
 	}
-
-	if cfg.RateLimit == 0 {
-		cfg.RateLimit = fileConfig.RateLimit
+	if fileConfig.CryptoKeyPath != "" {
+		viper.Set("crypto_key", fileConfig.CryptoKeyPath)
 	}
-
-	if cfg.CryptoKeyPath == "" {
-		cfg.CryptoKeyPath = fileConfig.CryptoKeyPath
+	if fileConfig.RateLimit != 0 {
+		viper.Set("rate_limit", fileConfig.RateLimit)
 	}
 
 	return nil
+}
+
+func bindPFlags() {
+	pflag.VisitAll(func(f *pflag.Flag) {
+		if f.Changed {
+			name := strings.ReplaceAll(f.Name, "-", "_")
+			viper.BindPFlag(name, f)
+		}
+	})
 }
