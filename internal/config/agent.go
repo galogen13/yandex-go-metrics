@@ -34,7 +34,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	viper.SetDefault("address", "localhost:8080")
 	viper.SetDefault("report_interval", 10)
 	viper.SetDefault("poll_interval", 2)
-	viper.SetDefault("key", "secret_key")
+	viper.SetDefault("key", "")
 	viper.SetDefault("rate_limit", 1)
 	viper.SetDefault("crypto_key", "")
 	viper.SetDefault("config", "")
@@ -55,7 +55,7 @@ func GetAgentConfig() (AgentConfig, error) {
 		}
 	}
 
-	if err := parseConfigFile(configPath); err != nil {
+	if err := parseAgentConfigFile(configPath); err != nil {
 		return AgentConfig{}, err
 	}
 
@@ -80,7 +80,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	return cfg, nil
 }
 
-func parseConfigFile(configPath string) error {
+func parseAgentConfigFile(configPath string) error {
 	if configPath == "" {
 		return nil
 	}
