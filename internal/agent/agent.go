@@ -50,8 +50,10 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"os/signal"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -119,30 +121,62 @@ func Start(config config.AgentConfig) error {
 		zap.Int("RateLimit", config.RateLimit),
 	)
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer stop()
+
+	var wg sync.WaitGroup
+
 	const numJobs = 1
 	jobs := make(chan any, numJobs)
 	for w := 1; w <= agent.config.RateLimit; w++ {
-		go agent.startSendWorker(jobs)
+		wg.Add(1)
+		go agent.startSendWorker(ctx, &wg, jobs)
 	}
-
-	defer close(jobs)
 
 	tickerPoll := time.NewTicker(time.Duration(config.PollInterval) * time.Second)
 	tickerReport := time.NewTicker(time.Duration(config.ReportInterval) * time.Second)
+
 	for {
 		select {
 		case <-tickerPoll.C:
-			go agent.updateMetrics()
+			wg.Add(1)
+			go agent.updateMetrics(&wg)
 		case <-tickerReport.C:
 			jobs <- nil
+		case <-ctx.Done():
+			logger.Log.Info("shutdown signal received, stopping agent gracefully...")
+
+			tickerPoll.Stop()
+			tickerReport.Stop()
+			logger.Log.Info("tickers stopped")
+
+			logger.Log.Info("waiting for workers to complete")
+			wg.Wait()
+			logger.Log.Info("workers completed")
+
+			close(jobs)
+
+			logger.Log.Info("last metrics sending")
+			agent.sendMetrics() // последняя отправка
+
+			logger.Log.Info("agent stopped gracefully")
+			return nil
 		}
 	}
 
 }
 
-func (agent *Agent) startSendWorker(jobs <-chan any) {
-	for range jobs {
-		agent.sendMetrics()
+func (agent *Agent) startSendWorker(ctx context.Context, wg *sync.WaitGroup, jobs <-chan any) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-jobs:
+			agent.sendMetrics()
+		case <-ctx.Done():
+			logger.Log.Info("send worker stopped")
+			return
+		}
 	}
 }
 
@@ -161,15 +195,14 @@ func NewAgent(agentConfig config.AgentConfig) (*Agent, error) {
 		nil
 }
 
-func (agent *Agent) updateMetrics() {
+func (agent *Agent) updateMetrics(wg *sync.WaitGroup) {
 
-	doneCh := make(chan struct{})
-	defer close(doneCh)
+	defer wg.Done()
 
-	channels := fanOut(doneCh)
-	addResultCh := fanIn(doneCh, channels...)
+	channels := fanOut()
+	addResultCh := fanIn(channels...)
 
-	metrics := multiplyMetrics(doneCh, addResultCh)
+	metrics := multiplyMetrics(addResultCh)
 
 	agent.muxPollCounter.Lock()
 	agent.increasePollСounter()
@@ -191,7 +224,7 @@ type metricsResult struct {
 	metrics []*metrics.Metric
 }
 
-func fanOut(doneCh chan struct{}) []chan metricsResult {
+func fanOut() []chan metricsResult {
 
 	workers := []func() []*metrics.Metric{
 		getRuntimeMetrics,
@@ -200,32 +233,27 @@ func fanOut(doneCh chan struct{}) []chan metricsResult {
 	channels := make([]chan metricsResult, len(workers))
 
 	for i, worker := range workers {
-		addResultCh := startWorker(doneCh, worker)
+		addResultCh := startWorker(worker)
 		channels[i] = addResultCh
 	}
 
 	return channels
 }
 
-func startWorker(doneCh chan struct{}, getMetrics func() []*metrics.Metric) chan metricsResult {
+func startWorker(getMetrics func() []*metrics.Metric) chan metricsResult {
 	addRes := make(chan metricsResult)
 
 	go func() {
 		defer close(addRes)
 
 		result := metricsResult{metrics: getMetrics()}
-
-		select {
-		case <-doneCh:
-			return
-		case addRes <- result:
-		}
+		addRes <- result
 
 	}()
 	return addRes
 }
 
-func fanIn(doneCh chan struct{}, resultChs ...chan metricsResult) chan metricsResult {
+func fanIn(resultChs ...chan metricsResult) chan metricsResult {
 
 	finalCh := make(chan metricsResult)
 
@@ -241,11 +269,7 @@ func fanIn(doneCh chan struct{}, resultChs ...chan metricsResult) chan metricsRe
 			defer wg.Done()
 
 			for data := range chClosure {
-				select {
-				case <-doneCh:
-					return
-				case finalCh <- data:
-				}
+				finalCh <- data
 			}
 		}()
 	}
@@ -258,19 +282,12 @@ func fanIn(doneCh chan struct{}, resultChs ...chan metricsResult) chan metricsRe
 	return finalCh
 }
 
-func multiplyMetrics(doneCh chan struct{}, inputCh chan metricsResult) []*metrics.Metric {
+func multiplyMetrics(inputCh chan metricsResult) []*metrics.Metric {
 	result := []*metrics.Metric{}
 
 	for data := range inputCh {
-
-		select {
-		case <-doneCh:
-			return nil
-		default:
-			result = append(result, data.metrics...)
-		}
+		result = append(result, data.metrics...)
 	}
-
 	return result
 }
 
