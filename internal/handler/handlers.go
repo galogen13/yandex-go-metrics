@@ -59,6 +59,9 @@ type Server interface {
 
 	// Decryptor возвращает декриптор для расщифровки сообщений
 	Decryptor() *crypto.Decryptor
+
+	//ShutdownTrackingMiddleware - middleware для управления wg с текущими запросами в обработке
+	ShutdownTrackingMiddleware(http.Handler) http.Handler
 }
 
 // PingStorageHandler возвращает HTTP-обработчик для проверки доступности хранилища.

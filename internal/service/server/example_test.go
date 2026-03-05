@@ -15,7 +15,8 @@ import (
 )
 
 // mockServer реализует интерфейс handler.Server для тестирования.
-type mockServer struct{}
+type mockServer struct {
+}
 
 func (m *mockServer) UpdateMetric(ctx context.Context, metric *metrics.Metric, addInfo addinfo.AddInfo) error {
 	return nil
@@ -51,6 +52,11 @@ func (m *mockServer) Key() string {
 
 func (m *mockServer) Decryptor() *crypto.Decryptor {
 	return nil
+}
+
+func (m *mockServer) ShutdownTrackingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	})
 }
 
 // Example_metricsRouter демонстрирует создание и использование роутера метрик.

@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/galogen13/yandex-go-metrics/internal/audit"
@@ -33,6 +36,7 @@ type ServerService struct {
 	Config       *config.ServerConfig
 	AuditService *audit.AuditService
 	decryptor    *crypto.Decryptor
+	wgRequests   *sync.WaitGroup
 }
 
 func NewServerService(config *config.ServerConfig, storage Storage, auditService *audit.AuditService) (*ServerService, error) {
@@ -41,39 +45,87 @@ func NewServerService(config *config.ServerConfig, storage Storage, auditService
 		return nil, fmt.Errorf("failed to create decryptor: %w", err)
 	}
 
+	var wg sync.WaitGroup
+
 	return &ServerService{
 			Config:       config,
 			Storage:      storage,
 			AuditService: auditService,
-			decryptor:    decryptor},
+			decryptor:    decryptor,
+			wgRequests:   &wg},
 		nil
 }
 
 func (serverService *ServerService) Start() error {
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer stop()
+
+	r := metricsRouter(serverService)
+
+	httpServer := &http.Server{
+		Addr:    serverService.Config.Host,
+		Handler: r,
+	}
+
+	httpServerErrChan := make(chan error)
+
+	go func() {
+		defer close(httpServerErrChan)
+
+		logger.Log.Info("Running server",
+			zap.String("address", serverService.Config.Host),
+			zap.String("logLevel", serverService.Config.LogLevel),
+			zap.Int("storeInterval", *serverService.Config.StoreInterval),
+			zap.String("file storage path", serverService.Config.FileStoragePath),
+			zap.Bool("restore storage", *serverService.Config.RestoreStorage),
+			zap.Bool("use database as storage", serverService.Config.UseDatabaseAsStorage),
+			zap.Bool("store on update", serverService.Config.StoreOnUpdate),
+			zap.Bool("store periodically", serverService.Config.StorePeriodically),
+		)
+		if err := httpServer.ListenAndServe(); err != nil {
+			httpServerErrChan <- err
+		}
+	}()
+
 	if *serverService.Config.RestoreStorage {
-		serverService.restoreFromFile()
+		serverService.restoreFromFile(ctx)
 	}
 
 	if serverService.Config.StorePeriodically {
-		stopChan := make(chan struct{})
-		defer close(stopChan)
-
-		go serverService.startPeriodicSave(stopChan)
+		go serverService.startPeriodicSave(ctx)
 	}
 
-	r := metricsRouter(serverService)
-	logger.Log.Info("Running server",
-		zap.String("address", serverService.Config.Host),
-		zap.String("logLevel", serverService.Config.LogLevel),
-		zap.Int("storeInterval", *serverService.Config.StoreInterval),
-		zap.String("file storage path", serverService.Config.FileStoragePath),
-		zap.Bool("restore storage", *serverService.Config.RestoreStorage),
-		zap.Bool("use database as storage", serverService.Config.UseDatabaseAsStorage),
-		zap.Bool("store on update", serverService.Config.StoreOnUpdate),
-		zap.Bool("store periodically", serverService.Config.StorePeriodically),
-	)
-	return http.ListenAndServe(serverService.Config.Host, r)
+	select {
+	case err := <-httpServerErrChan:
+		return err
+	case <-ctx.Done():
+		logger.Log.Info("shutdown signal received, stopping server gracefully...")
+		waitCh := make(chan struct{})
+		go func() {
+			serverService.wgRequests.Wait()
+			close(waitCh)
+		}()
+
+		select {
+		case <-waitCh:
+			logger.Log.Info("All requests completed")
+		case <-time.After(30 * time.Second):
+			logger.Log.Warn("Timeout waiting for requests to complete")
+		}
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("HTTP server shutdown error: %w", err)
+		}
+
+		logger.Log.Info("Server stopped gracefully, all data saved")
+	}
+
+	return nil
+
 }
 
 func (serverService *ServerService) UpdateMetric(ctx context.Context, incomingMetric *metrics.Metric, addInfo addinfo.AddInfo) error {
@@ -179,21 +231,21 @@ func (serverService *ServerService) PingStorage(ctx context.Context) error {
 
 }
 
-func (serverService *ServerService) restoreFromFile() {
+func (serverService *ServerService) restoreFromFile(ctx context.Context) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctxTimeout, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
-	err := serverService.restoreStorageFromFile(ctx, serverService.Config.FileStoragePath)
+	err := serverService.restoreStorageFromFile(ctxTimeout, serverService.Config.FileStoragePath)
 	if err != nil {
 		logger.Log.Info("error while restoring from file", zap.Error(err))
 		return
 	}
-	switch ctx.Err() {
+	switch ctxTimeout.Err() {
 	case context.Canceled:
-		logger.Log.Info("restoring from file cancelled", zap.Error(ctx.Err()))
+		logger.Log.Info("restoring from file cancelled", zap.Error(ctxTimeout.Err()))
 	case context.DeadlineExceeded:
-		logger.Log.Info("error while restoring from file", zap.Error(ctx.Err()))
+		logger.Log.Info("error while restoring from file", zap.Error(ctxTimeout.Err()))
 	}
 
 }
@@ -204,6 +256,10 @@ func (serverService *ServerService) Key() string {
 
 func (serverService *ServerService) Decryptor() *crypto.Decryptor {
 	return serverService.decryptor
+}
+
+func (serverService *ServerService) RequestsWaitGroup() *sync.WaitGroup {
+	return serverService.wgRequests
 }
 
 func (serverService *ServerService) restoreStorageFromFile(ctx context.Context, fileStoragePath string) error {
@@ -232,9 +288,9 @@ func (serverService *ServerService) restoreStorageFromFile(ctx context.Context, 
 	return nil
 }
 
-func (serverService *ServerService) startPeriodicSave(stopChan <-chan struct{}) {
+func (serverService *ServerService) startPeriodicSave(ctx context.Context) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctxTimeout, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
 	ticker := time.NewTicker(time.Second * time.Duration(*serverService.Config.StoreInterval))
@@ -243,10 +299,10 @@ func (serverService *ServerService) startPeriodicSave(stopChan <-chan struct{}) 
 	for {
 		select {
 		case <-ticker.C:
-			if err := serverService.saveStorageToFile(ctx, serverService.Config.FileStoragePath); err != nil {
+			if err := serverService.saveStorageToFile(ctxTimeout, serverService.Config.FileStoragePath); err != nil {
 				logger.Log.Info("cant save metrics to file periodically", zap.Error(err))
 			}
-		case <-stopChan:
+		case <-ctxTimeout.Done():
 			logger.Log.Info("periodic save stopped")
 			return
 		}
@@ -289,4 +345,14 @@ func errUpdatingMetrics(err error) error {
 
 func errGettingMetrics(err error) error {
 	return fmt.Errorf("error getting metrics: %w", err)
+}
+
+func (serverService *ServerService) ShutdownTrackingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		serverService.wgRequests.Add(1)
+		defer serverService.wgRequests.Done()
+
+		next.ServeHTTP(w, r)
+	})
 }

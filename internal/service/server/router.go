@@ -22,6 +22,8 @@ func metricsRouter(server handler.Server) *chi.Mux {
 	r.NotFound(logger.RequestLogger(notFoundHandler()))
 	r.MethodNotAllowed(logger.RequestLogger(methodNotAllowedHandler()))
 
+	r.Use(server.ShutdownTrackingMiddleware)
+
 	r.Get("/", logger.RequestLogger(
 		compression.GzipMiddleware(
 			handler.GetListHandler(server))))
