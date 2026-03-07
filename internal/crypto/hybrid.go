@@ -102,7 +102,7 @@ func GenerateKeys() (privateKeyPEM, publicKeyPEM string, err error) {
 	return encryption.GenerateKeyPair()
 }
 
-func DecryptMiddleware(d *Decryptor, next http.Handler) http.HandlerFunc {
+func DecryptMiddleware(d *Decryptor, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if d == nil {
 			next.ServeHTTP(w, r)

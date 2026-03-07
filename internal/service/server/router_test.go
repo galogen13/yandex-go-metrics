@@ -55,7 +55,8 @@ func TestRouter_Update(t *testing.T) {
 	config := config.ServerConfig{Host: "localhost:8080"}
 	auditService := audit.NewAuditService()
 
-	serverService, _ := NewServerService(&config, stor, auditService)
+	serverService, err := NewServerService(&config, stor, auditService)
+	require.NoError(t, err)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -154,7 +155,8 @@ func TestRouter_Get(t *testing.T) {
 	config := config.ServerConfig{Host: "localhost:8080"}
 	auditService := audit.NewAuditService()
 
-	serverService, _ := NewServerService(&config, stor, auditService)
+	serverService, err := NewServerService(&config, stor, auditService)
+	require.NoError(t, err)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -232,7 +234,8 @@ func TestRouter_Compression(t *testing.T) {
 	config := config.ServerConfig{Host: "localhost:8080"}
 	auditService := audit.NewAuditService()
 
-	serverService, _ := NewServerService(&config, stor, auditService)
+	serverService, err := NewServerService(&config, stor, auditService)
+	require.NoError(t, err)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -286,7 +289,8 @@ func TestRouter_UpdateURL(t *testing.T) {
 	config := config.ServerConfig{Host: "localhost:8080"}
 	auditService := audit.NewAuditService()
 
-	serverService, _ := NewServerService(&config, stor, auditService)
+	serverService, err := NewServerService(&config, stor, auditService)
+	require.NoError(t, err)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -374,7 +378,8 @@ func TestRouter_GetList(t *testing.T) {
 	config := config.ServerConfig{Host: "localhost:8080"}
 	auditService := audit.NewAuditService()
 
-	serverService, _ := NewServerService(&config, stor, auditService)
+	serverService, err := NewServerService(&config, stor, auditService)
+	require.NoError(t, err)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -430,7 +435,8 @@ func TestRouter_GetURL(t *testing.T) {
 	config := config.ServerConfig{Host: "localhost:8080"}
 	auditService := audit.NewAuditService()
 
-	serverService, _ := NewServerService(&config, stor, auditService)
+	serverService, err := NewServerService(&config, stor, auditService)
+	require.NoError(t, err)
 
 	ts := httptest.NewServer(metricsRouter(serverService))
 	defer ts.Close()
@@ -559,7 +565,8 @@ func TestGzipCompression(t *testing.T) {
 	require.NoError(t, err)
 	auditService := audit.NewAuditService()
 
-	serverService, _ := NewServerService(config, stor, auditService)
+	serverService, err := NewServerService(config, stor, auditService)
+	require.NoError(t, err)
 
 	handler := http.HandlerFunc(compression.GzipMiddleware(handler.GetValueHandler(serverService)))
 

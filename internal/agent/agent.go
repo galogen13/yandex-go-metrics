@@ -46,6 +46,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -136,6 +137,7 @@ func Start(config config.AgentConfig) error {
 	tickerPoll := time.NewTicker(time.Duration(config.PollInterval) * time.Second)
 	tickerReport := time.NewTicker(time.Duration(config.ReportInterval) * time.Second)
 
+loop:
 	for {
 		select {
 		case <-tickerPoll.C:
@@ -144,25 +146,31 @@ func Start(config config.AgentConfig) error {
 		case <-tickerReport.C:
 			jobs <- nil
 		case <-ctx.Done():
-			logger.Log.Info("shutdown signal received, stopping agent gracefully...")
-
-			tickerPoll.Stop()
-			tickerReport.Stop()
-			logger.Log.Info("tickers stopped")
-
-			logger.Log.Info("waiting for workers to complete")
-			wg.Wait()
-			logger.Log.Info("workers completed")
-
-			close(jobs)
-
-			logger.Log.Info("last metrics sending")
-			agent.sendMetrics() // последняя отправка
-
-			logger.Log.Info("agent stopped gracefully")
-			return nil
+			break loop
 		}
 	}
+
+	if ctx.Err() != nil {
+		logger.Log.Info("shutdown signal received, stopping agent gracefully...")
+
+		tickerPoll.Stop()
+		tickerReport.Stop()
+		logger.Log.Info("tickers stopped")
+
+		logger.Log.Info("waiting for workers to complete")
+		wg.Wait()
+		logger.Log.Info("workers completed")
+
+		close(jobs)
+
+		logger.Log.Info("last metrics sending")
+		agent.sendMetrics() // последняя отправка
+
+		logger.Log.Info("agent stopped gracefully")
+		return nil
+	}
+
+	return errors.New("unexpected stop of the agent")
 
 }
 

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -36,7 +35,6 @@ type ServerService struct {
 	Config       *config.ServerConfig
 	AuditService *audit.AuditService
 	decryptor    *crypto.Decryptor
-	wgRequests   *sync.WaitGroup
 }
 
 func NewServerService(config *config.ServerConfig, storage Storage, auditService *audit.AuditService) (*ServerService, error) {
@@ -45,14 +43,11 @@ func NewServerService(config *config.ServerConfig, storage Storage, auditService
 		return nil, fmt.Errorf("failed to create decryptor: %w", err)
 	}
 
-	var wg sync.WaitGroup
-
 	return &ServerService{
 			Config:       config,
 			Storage:      storage,
 			AuditService: auditService,
-			decryptor:    decryptor,
-			wgRequests:   &wg},
+			decryptor:    decryptor},
 		nil
 }
 
@@ -101,18 +96,6 @@ func (serverService *ServerService) Start() error {
 		return err
 	case <-ctx.Done():
 		logger.Log.Info("shutdown signal received, stopping server gracefully...")
-		waitCh := make(chan struct{})
-		go func() {
-			serverService.wgRequests.Wait()
-			close(waitCh)
-		}()
-
-		select {
-		case <-waitCh:
-			logger.Log.Info("All requests completed")
-		case <-time.After(30 * time.Second):
-			logger.Log.Warn("Timeout waiting for requests to complete")
-		}
 
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
@@ -258,10 +241,6 @@ func (serverService *ServerService) Decryptor() *crypto.Decryptor {
 	return serverService.decryptor
 }
 
-func (serverService *ServerService) RequestsWaitGroup() *sync.WaitGroup {
-	return serverService.wgRequests
-}
-
 func (serverService *ServerService) restoreStorageFromFile(ctx context.Context, fileStoragePath string) error {
 
 	if fileStoragePath == "" {
@@ -345,14 +324,4 @@ func errUpdatingMetrics(err error) error {
 
 func errGettingMetrics(err error) error {
 	return fmt.Errorf("error getting metrics: %w", err)
-}
-
-func (serverService *ServerService) ShutdownTrackingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		serverService.wgRequests.Add(1)
-		defer serverService.wgRequests.Done()
-
-		next.ServeHTTP(w, r)
-	})
 }
