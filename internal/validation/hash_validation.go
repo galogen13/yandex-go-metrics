@@ -87,7 +87,7 @@ func CalculateHMAC(data []byte, key string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func HashValidation(key string, next http.Handler) http.HandlerFunc {
+func HashValidation(key string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		receivedHash := r.Header.Get(hashHeaderKey)

@@ -46,12 +46,15 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"os/signal"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -59,6 +62,7 @@ import (
 
 	"github.com/galogen13/yandex-go-metrics/internal/compression"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
+	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/retry"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
@@ -85,6 +89,7 @@ type Agent struct {
 	config config.AgentConfig
 	// PollCount - метрика-счетчик, которая накапливает количество попыток сбора метрик из пакета runtime
 	PollCount int64
+	encryptor *crypto.Encryptor
 }
 
 func (agent *Agent) increasePollСounter() {
@@ -102,9 +107,13 @@ func (agent *Agent) decreasePollCounter(decrementer int64) {
 }
 
 // Start иницииализирует агента, запускает таймеры сбора метрик и их отправки на сервер.
-func Start(config config.AgentConfig) {
+func Start(config config.AgentConfig) error {
 
-	agent := NewAgent(config)
+	agent, err := NewAgent(config)
+
+	if err != nil {
+		return fmt.Errorf("cannot start agent: %w", err)
+	}
 
 	logger.Log.Info("starting agent",
 		zap.String("Host", config.Host),
@@ -113,51 +122,95 @@ func Start(config config.AgentConfig) {
 		zap.Int("RateLimit", config.RateLimit),
 	)
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer stop()
+
+	var wg sync.WaitGroup
+
 	const numJobs = 1
 	jobs := make(chan any, numJobs)
 	for w := 1; w <= agent.config.RateLimit; w++ {
-		go agent.startSendWorker(jobs)
+		wg.Add(1)
+		go agent.startSendWorker(ctx, &wg, jobs)
 	}
-
-	defer close(jobs)
 
 	tickerPoll := time.NewTicker(time.Duration(config.PollInterval) * time.Second)
 	tickerReport := time.NewTicker(time.Duration(config.ReportInterval) * time.Second)
+
+loop:
 	for {
 		select {
 		case <-tickerPoll.C:
-			go agent.updateMetrics()
+			wg.Add(1)
+			go agent.updateMetrics(&wg)
 		case <-tickerReport.C:
 			jobs <- nil
+		case <-ctx.Done():
+			break loop
 		}
 	}
 
+	if ctx.Err() != nil {
+		logger.Log.Info("shutdown signal received, stopping agent gracefully...")
+
+		tickerPoll.Stop()
+		tickerReport.Stop()
+		logger.Log.Info("tickers stopped")
+
+		logger.Log.Info("waiting for workers to complete")
+		wg.Wait()
+		logger.Log.Info("workers completed")
+
+		close(jobs)
+
+		logger.Log.Info("last metrics sending")
+		agent.sendMetrics() // последняя отправка
+
+		logger.Log.Info("agent stopped gracefully")
+		return nil
+	}
+
+	return errors.New("unexpected stop of the agent")
+
 }
 
-func (agent *Agent) startSendWorker(jobs <-chan any) {
-	for range jobs {
-		agent.sendMetrics()
+func (agent *Agent) startSendWorker(ctx context.Context, wg *sync.WaitGroup, jobs <-chan any) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-jobs:
+			agent.sendMetrics()
+		case <-ctx.Done():
+			logger.Log.Info("send worker stopped")
+			return
+		}
 	}
 }
 
 // NewAgent инициализирует структуру агента с параметрами настройки
-func NewAgent(agentConfig config.AgentConfig) *Agent {
+func NewAgent(agentConfig config.AgentConfig) (*Agent, error) {
+	encryptor, err := crypto.NewEncryptor(agentConfig.CryptoKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot initialize encryptor: %w", err)
+	}
 	return &Agent{
-		config:         agentConfig,
-		metrics:        []*metrics.Metric{},
-		muxMetrics:     &sync.Mutex{},
-		muxPollCounter: &sync.Mutex{}}
+			config:         agentConfig,
+			metrics:        []*metrics.Metric{},
+			muxMetrics:     &sync.Mutex{},
+			muxPollCounter: &sync.Mutex{},
+			encryptor:      encryptor},
+		nil
 }
 
-func (agent *Agent) updateMetrics() {
+func (agent *Agent) updateMetrics(wg *sync.WaitGroup) {
 
-	doneCh := make(chan struct{})
-	defer close(doneCh)
+	defer wg.Done()
 
-	channels := fanOut(doneCh)
-	addResultCh := fanIn(doneCh, channels...)
+	channels := fanOut()
+	addResultCh := fanIn(channels...)
 
-	metrics := multiplyMetrics(doneCh, addResultCh)
+	metrics := multiplyMetrics(addResultCh)
 
 	agent.muxPollCounter.Lock()
 	agent.increasePollСounter()
@@ -179,7 +232,7 @@ type metricsResult struct {
 	metrics []*metrics.Metric
 }
 
-func fanOut(doneCh chan struct{}) []chan metricsResult {
+func fanOut() []chan metricsResult {
 
 	workers := []func() []*metrics.Metric{
 		getRuntimeMetrics,
@@ -188,32 +241,27 @@ func fanOut(doneCh chan struct{}) []chan metricsResult {
 	channels := make([]chan metricsResult, len(workers))
 
 	for i, worker := range workers {
-		addResultCh := startWorker(doneCh, worker)
+		addResultCh := startWorker(worker)
 		channels[i] = addResultCh
 	}
 
 	return channels
 }
 
-func startWorker(doneCh chan struct{}, getMetrics func() []*metrics.Metric) chan metricsResult {
+func startWorker(getMetrics func() []*metrics.Metric) chan metricsResult {
 	addRes := make(chan metricsResult)
 
 	go func() {
 		defer close(addRes)
 
 		result := metricsResult{metrics: getMetrics()}
-
-		select {
-		case <-doneCh:
-			return
-		case addRes <- result:
-		}
+		addRes <- result
 
 	}()
 	return addRes
 }
 
-func fanIn(doneCh chan struct{}, resultChs ...chan metricsResult) chan metricsResult {
+func fanIn(resultChs ...chan metricsResult) chan metricsResult {
 
 	finalCh := make(chan metricsResult)
 
@@ -229,11 +277,7 @@ func fanIn(doneCh chan struct{}, resultChs ...chan metricsResult) chan metricsRe
 			defer wg.Done()
 
 			for data := range chClosure {
-				select {
-				case <-doneCh:
-					return
-				case finalCh <- data:
-				}
+				finalCh <- data
 			}
 		}()
 	}
@@ -246,19 +290,12 @@ func fanIn(doneCh chan struct{}, resultChs ...chan metricsResult) chan metricsRe
 	return finalCh
 }
 
-func multiplyMetrics(doneCh chan struct{}, inputCh chan metricsResult) []*metrics.Metric {
+func multiplyMetrics(inputCh chan metricsResult) []*metrics.Metric {
 	result := []*metrics.Metric{}
 
 	for data := range inputCh {
-
-		select {
-		case <-doneCh:
-			return nil
-		default:
-			result = append(result, data.metrics...)
-		}
+		result = append(result, data.metrics...)
 	}
-
 	return result
 }
 
@@ -519,9 +556,15 @@ func (agent *Agent) sendMetrics() {
 		return
 	}
 
-	buf, err := compression.GzipCompress(bodyBytes)
+	compressed, err := compression.GzipCompress(bodyBytes)
 	if err != nil {
 		logger.Log.Error("error while gzip compress metrics", zap.Error(err))
+		return
+	}
+
+	body, err := agent.encryptor.Encrypt(compressed.Bytes())
+	if err != nil {
+		logger.Log.Error("failed to encrypt data", zap.Error(err))
 		return
 	}
 
@@ -535,10 +578,10 @@ func (agent *Agent) sendMetrics() {
 	req := client.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
-		SetBody(buf.Bytes())
+		SetBody(body)
 
 	if agent.config.Key != "" {
-		hash := validation.CalculateHMAC(buf.Bytes(), agent.config.Key)
+		hash := validation.CalculateHMAC(body, agent.config.Key)
 		req.SetHeader("HashSHA256", hash)
 	}
 

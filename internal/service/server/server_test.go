@@ -32,7 +32,7 @@ func BenchmarkUpdateMetrics(b *testing.B) {
 
 	ai := addinfo.AddInfo{}
 
-	ss := NewServerService(config, mockStorage, as)
+	ss, _ := NewServerService(config, mockStorage, as)
 
 	metricsCount := 1000
 
@@ -91,7 +91,7 @@ func BenchmarkUpdateMetrics_MemStorage(b *testing.B) {
 
 	ai := addinfo.AddInfo{}
 
-	ss := NewServerService(config, memstorage, as)
+	ss, _ := NewServerService(config, memstorage, as)
 
 	metricsCount := 1000
 
@@ -142,7 +142,7 @@ func BenchmarkGetMetric(b *testing.B) {
 
 	ctx := context.Background()
 
-	ss := NewServerService(config, mockStorage, as)
+	ss, _ := NewServerService(config, mockStorage, as)
 
 	metricsCount := 100
 
@@ -199,7 +199,7 @@ func BenchmarkGetAllMetricsValues(b *testing.B) {
 
 	ctx := context.Background()
 
-	ss := NewServerService(config, mockStorage, as)
+	ss, _ := NewServerService(config, mockStorage, as)
 
 	metricsCount := 1000
 

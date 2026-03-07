@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/galogen13/yandex-go-metrics/internal/compression"
+	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/validation"
@@ -31,26 +32,43 @@ func metricsRouter(server handler.Server) *chi.Mux {
 	})
 
 	r.Route("/update", func(r chi.Router) {
-		r.Post("/", logger.RequestLogger(
-			validation.HashValidation(server.Key(),
-				compression.GzipMiddleware(
-					handler.UpdateHandler(server)))))
+		updateHandler := handler.UpdateHandler(server)
+		updateHandler = compression.GzipMiddleware(updateHandler)
+		updateHandler = validation.HashValidation(server.Key(), updateHandler)
+
+		if server.Decryptor() != nil {
+			updateHandler = crypto.DecryptMiddleware(server.Decryptor(), updateHandler)
+		}
+
+		r.Post("/", logger.RequestLogger(updateHandler))
+
 		r.Post("/{mType}/{metrics}/{value}", logger.RequestLogger(
 			handler.UpdateURLHandler(server)))
 	})
 
 	r.Route("/updates", func(r chi.Router) {
-		r.Post("/", logger.RequestLogger(
-			validation.HashValidation(server.Key(),
-				compression.GzipMiddleware(
-					handler.UpdatesHandler(server)))))
+		updatesHandler := handler.UpdatesHandler(server)
+		updatesHandler = compression.GzipMiddleware(updatesHandler)
+		updatesHandler = validation.HashValidation(server.Key(), updatesHandler)
+
+		if server.Decryptor() != nil {
+			updatesHandler = crypto.DecryptMiddleware(server.Decryptor(), updatesHandler)
+		}
+
+		r.Post("/", logger.RequestLogger(updatesHandler))
 	})
 
 	r.Route("/value", func(r chi.Router) {
-		r.Post("/", logger.RequestLogger(
-			validation.HashValidation(server.Key(),
-				compression.GzipMiddleware(
-					handler.GetValueHandler(server)))))
+		valueHandler := handler.GetValueHandler(server)
+		valueHandler = compression.GzipMiddleware(valueHandler)
+		valueHandler = validation.HashValidation(server.Key(), valueHandler)
+
+		if server.Decryptor() != nil {
+			valueHandler = crypto.DecryptMiddleware(server.Decryptor(), valueHandler)
+		}
+
+		r.Post("/", logger.RequestLogger(valueHandler))
+
 		r.Get("/{mType}/{metrics}", logger.RequestLogger(handler.GetValueURLHandler(server)))
 	})
 
