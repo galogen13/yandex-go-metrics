@@ -9,12 +9,14 @@ import (
 	"net/http/httptest"
 	"strings"
 
+	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 )
 
 // mockServer реализует интерфейс handler.Server для тестирования.
-type mockServer struct{}
+type mockServer struct {
+}
 
 func (m *mockServer) UpdateMetric(ctx context.Context, metric *metrics.Metric, addInfo addinfo.AddInfo) error {
 	return nil
@@ -46,6 +48,15 @@ func (m *mockServer) PingStorage(ctx context.Context) error {
 
 func (m *mockServer) Key() string {
 	return "test-key"
+}
+
+func (m *mockServer) Decryptor() *crypto.Decryptor {
+	return nil
+}
+
+func (m *mockServer) ShutdownTrackingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	})
 }
 
 // Example_metricsRouter демонстрирует создание и использование роутера метрик.

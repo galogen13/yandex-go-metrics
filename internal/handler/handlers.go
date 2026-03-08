@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
@@ -55,6 +56,9 @@ type Server interface {
 
 	// Key возвращает ключ для подписи метрик.
 	Key() string
+
+	// Decryptor возвращает декриптор для расщифровки сообщений
+	Decryptor() *crypto.Decryptor
 }
 
 // PingStorageHandler возвращает HTTP-обработчик для проверки доступности хранилища.

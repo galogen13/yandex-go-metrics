@@ -62,4 +62,4 @@ run-agent:
 	go run $(LDFLAGS) $(GOBASE)/cmd/agent
 
 run-all: 
-	build-server build-agent
+	run-server run-agent
