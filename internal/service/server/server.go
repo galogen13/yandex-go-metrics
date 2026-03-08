@@ -283,6 +283,11 @@ func (serverService *ServerService) startPeriodicSave(ctx context.Context) {
 			}
 		case <-ctxTimeout.Done():
 			logger.Log.Info("periodic save stopped")
+			logger.Log.Info("last save to file")
+			if err := serverService.saveStorageToFile(ctxTimeout, serverService.Config.FileStoragePath); err != nil {
+				logger.Log.Info("error occurred while last saving to file", zap.Error(err))
+			}
+
 			return
 		}
 	}
