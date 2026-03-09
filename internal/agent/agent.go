@@ -66,6 +66,7 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	"github.com/galogen13/yandex-go-metrics/internal/retry"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
+	"github.com/galogen13/yandex-go-metrics/internal/trusted"
 	"github.com/galogen13/yandex-go-metrics/internal/validation"
 	"go.uber.org/zap"
 
@@ -90,6 +91,7 @@ type Agent struct {
 	// PollCount - метрика-счетчик, которая накапливает количество попыток сбора метрик из пакета runtime
 	PollCount int64
 	encryptor *crypto.Encryptor
+	localIP   string
 }
 
 func (agent *Agent) increasePollСounter() {
@@ -194,12 +196,19 @@ func NewAgent(agentConfig config.AgentConfig) (*Agent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot initialize encryptor: %w", err)
 	}
+
+	localIP, err := trusted.GetLocalIP()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get local IP: %w", err)
+	}
+
 	return &Agent{
 			config:         agentConfig,
 			metrics:        []*metrics.Metric{},
 			muxMetrics:     &sync.Mutex{},
 			muxPollCounter: &sync.Mutex{},
-			encryptor:      encryptor},
+			encryptor:      encryptor,
+			localIP:        localIP},
 		nil
 }
 
@@ -578,6 +587,7 @@ func (agent *Agent) sendMetrics() {
 	req := client.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
+		SetHeader("X-Real-IP", agent.localIP).
 		SetBody(body)
 
 	if agent.config.Key != "" {

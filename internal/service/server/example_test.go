@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -51,6 +52,10 @@ func (m *mockServer) Key() string {
 }
 
 func (m *mockServer) Decryptor() *crypto.Decryptor {
+	return nil
+}
+
+func (m *mockServer) TrustedSubnet() *net.IPNet {
 	return nil
 }
 

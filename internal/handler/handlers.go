@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 
@@ -59,6 +60,9 @@ type Server interface {
 
 	// Decryptor возвращает декриптор для расщифровки сообщений
 	Decryptor() *crypto.Decryptor
+
+	// TrustedSubnet возвращает доверенную подсеть
+	TrustedSubnet() *net.IPNet
 }
 
 // PingStorageHandler возвращает HTTP-обработчик для проверки доступности хранилища.

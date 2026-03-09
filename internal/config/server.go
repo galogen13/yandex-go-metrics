@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ type ServerConfig struct {
 	AuditFile            string `json:"audit_file" mapstructure:"audit_file"`
 	AuditURL             string `json:"audit_url" mapstructure:"audit_url"`
 	CryptoKeyPath        string `json:"crypto_key" mapstructure:"crypto_key"` // путь к приватному ключу
+	TrustedSubnet        string `json:"trusted_subnet" mapstructure:"trusted_subnet"`
 	UseDatabaseAsStorage bool
 	StoreOnUpdate        bool
 	StorePeriodically    bool
@@ -39,6 +41,7 @@ type FileServerConfig struct {
 	AuditFile       string `json:"audit_file"`
 	AuditURL        string `json:"audit_url"`
 	CryptoKeyPath   string `json:"crypto_key"` // путь к приватному ключу
+	TrustedSubnet   string `json:"trusted_subnet"`
 }
 
 func GetServerConfig() (*ServerConfig, error) {
@@ -54,6 +57,7 @@ func GetServerConfig() (*ServerConfig, error) {
 	viper.SetDefault("audit_url", "")
 	viper.SetDefault("crypto_key", "")
 	viper.SetDefault("config", "")
+	viper.SetDefault("trusted_subnet", "")
 
 	pflag.StringP("address", "a", viper.GetString("address"), "server address")
 	pflag.StringP("log-level", "l", viper.GetString("log_level"), "log level")
@@ -66,6 +70,7 @@ func GetServerConfig() (*ServerConfig, error) {
 	pflag.String("audit-url", viper.GetString("audit_url"), "audit URL")
 	pflag.String("crypto-key", viper.GetString("crypto_key"), "crypto key path")
 	pflag.StringP("config", "c", viper.GetString("config"), "path to configuration file")
+	pflag.String("t", viper.GetString("trusted_subnet"), "trusted subnet")
 	pflag.Parse()
 
 	configPath := os.Getenv("CONFIG")
@@ -94,6 +99,7 @@ func GetServerConfig() (*ServerConfig, error) {
 	viper.BindEnv("audit_url", "AUDIT_URL")
 	viper.BindEnv("crypto_key", "CRYPTO_KEY")
 	viper.BindEnv("config", "CONFIG")
+	viper.BindEnv("trusted_subnet", "TRUSTED_SUBNET")
 
 	var cfg = &ServerConfig{}
 
@@ -173,5 +179,22 @@ func parseServerConfigFile(configPath string) error {
 		viper.Set("crypto_key", fileConfig.CryptoKeyPath)
 	}
 
+	if fileConfig.TrustedSubnet != "" {
+		viper.Set("trusted_subnet", fileConfig.TrustedSubnet)
+	}
+
 	return nil
+}
+
+func (c ServerConfig) GetTrustedSubnet() (*net.IPNet, error) {
+	if c.TrustedSubnet == "" {
+		return nil, nil
+	}
+
+	_, ipNet, err := net.ParseCIDR(c.TrustedSubnet)
+	if err != nil {
+		return nil, fmt.Errorf("invalid trusted subnet format: %w", err)
+	}
+
+	return ipNet, nil
 }

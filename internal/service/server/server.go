@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -31,10 +32,11 @@ type Storage interface {
 }
 
 type ServerService struct {
-	Storage      Storage
-	Config       *config.ServerConfig
-	AuditService *audit.AuditService
-	decryptor    *crypto.Decryptor
+	Storage       Storage
+	Config        *config.ServerConfig
+	AuditService  *audit.AuditService
+	decryptor     *crypto.Decryptor
+	trustedSubnet *net.IPNet
 }
 
 func NewServerService(config *config.ServerConfig, storage Storage, auditService *audit.AuditService) (*ServerService, error) {
@@ -43,11 +45,18 @@ func NewServerService(config *config.ServerConfig, storage Storage, auditService
 		return nil, fmt.Errorf("failed to create decryptor: %w", err)
 	}
 
+	trustedSubnet, err := config.GetTrustedSubnet()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse trusted subnet: %w", err)
+	}
+
 	return &ServerService{
-			Config:       config,
-			Storage:      storage,
-			AuditService: auditService,
-			decryptor:    decryptor},
+			Config:        config,
+			Storage:       storage,
+			AuditService:  auditService,
+			decryptor:     decryptor,
+			trustedSubnet: trustedSubnet,
+		},
 		nil
 }
 
@@ -77,6 +86,7 @@ func (serverService *ServerService) Start() error {
 			zap.Bool("use database as storage", serverService.Config.UseDatabaseAsStorage),
 			zap.Bool("store on update", serverService.Config.StoreOnUpdate),
 			zap.Bool("store periodically", serverService.Config.StorePeriodically),
+			zap.String("trusted subnet", serverService.Config.TrustedSubnet),
 		)
 		if err := httpServer.ListenAndServe(); err != nil {
 			httpServerErrChan <- err
@@ -239,6 +249,10 @@ func (serverService *ServerService) Key() string {
 
 func (serverService *ServerService) Decryptor() *crypto.Decryptor {
 	return serverService.decryptor
+}
+
+func (serverService *ServerService) TrustedSubnet() *net.IPNet {
+	return serverService.trustedSubnet
 }
 
 func (serverService *ServerService) restoreStorageFromFile(ctx context.Context, fileStoragePath string) error {
