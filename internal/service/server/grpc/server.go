@@ -90,7 +90,7 @@ func (mServer *MetricsServer) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *MetricsServer) UpdateMetrics(ctx context.Context, in *proto.UpdateMetricsRequest) (*proto.UpdateMetricsResponse, error) {
+func (mServer *MetricsServer) UpdateMetrics(ctx context.Context, in *proto.UpdateMetricsRequest) (*proto.UpdateMetricsResponse, error) {
 	var response proto.UpdateMetricsResponse
 
 	clientIP, err := getClientIP(ctx)
@@ -113,14 +113,16 @@ func (s *MetricsServer) UpdateMetrics(ctx context.Context, in *proto.UpdateMetri
 		newMetric := metrics.NewMetrics(rMetric.GetId(), mType)
 		err := newMetric.UpdateValue(mValue)
 		if err != nil {
-
+			return nil, status.Errorf(codes.InvalidArgument,
+				"invalid metric value update: %v (metric ID: %s, type: %v)",
+				err, newMetric.ID, newMetric.MType)
 		}
 		newMetrics = append(newMetrics, newMetric)
 	}
 
-	err = s.serverService.UpdateMetrics(ctx, newMetrics, addinfo.AddInfo{RemoteAddr: clientIP.String()})
+	err = mServer.serverService.UpdateMetrics(ctx, newMetrics, addinfo.AddInfo{RemoteAddr: clientIP.String()})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to update metrics: %w", err)
+		return nil, status.Errorf(codes.Internal, "failed to update metrics: %v", err.Error())
 	}
 	return &response, nil
 }

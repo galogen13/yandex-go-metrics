@@ -180,20 +180,20 @@ func GetMetricIDs(metrics []*Metric) []string {
 	return mNames
 }
 
-func (m *Metric) DeepCopy() *Metric {
+func (metric *Metric) DeepCopy() *Metric {
 	copyMetric := &Metric{
-		ID:       m.ID,
-		MType:    m.MType,
-		ValueStr: m.ValueStr,
+		ID:       metric.ID,
+		MType:    metric.MType,
+		ValueStr: metric.ValueStr,
 	}
 
-	if m.Delta != nil {
-		deltaCopy := *m.Delta
+	if metric.Delta != nil {
+		deltaCopy := *metric.Delta
 		copyMetric.Delta = &deltaCopy
 	}
 
-	if m.Value != nil {
-		valueCopy := *m.Value
+	if metric.Value != nil {
+		valueCopy := *metric.Value
 		copyMetric.Value = &valueCopy
 	}
 
