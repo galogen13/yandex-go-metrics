@@ -1,4 +1,4 @@
-package server
+package httpserver
 
 import (
 	"bytes"
@@ -17,6 +17,7 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/handler"
 	storage "github.com/galogen13/yandex-go-metrics/internal/repository/memstorage"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
+	"github.com/galogen13/yandex-go-metrics/internal/service/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +33,7 @@ type testRequestResponse struct {
 
 type testCase struct {
 	name        string
-	storage     Storage
+	storage     server.Storage
 	method      string
 	url         string
 	contentType string
@@ -52,13 +53,16 @@ type wantStruct struct {
 func TestRouter_Update(t *testing.T) {
 
 	stor := storage.NewMemStorage()
-	config := config.ServerConfig{Host: "localhost:8080"}
+	config := testServerConfig()
 	auditService := audit.NewAuditService()
 
-	serverService, err := NewServerService(&config, stor, auditService)
+	serverService, err := server.NewServerService(config, stor, auditService)
 	require.NoError(t, err)
 
-	ts := httptest.NewServer(metricsRouter(serverService))
+	mService, err := NewMetricsServer(config, serverService)
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(metricsRouter(mService))
 	defer ts.Close()
 
 	tests := []testCase{
@@ -149,16 +153,33 @@ func TestRouter_Update(t *testing.T) {
 	}
 }
 
+func testServerConfig() *config.ServerConfig {
+	config := config.ServerConfig{Host: "localhost:8080",
+		StoreInterval: func() *int {
+			i := 0
+			return &i
+		}(),
+		RestoreStorage: func() *bool {
+			i := false
+			return &i
+		}(),
+	}
+	return &config
+}
+
 func TestRouter_Get(t *testing.T) {
 
 	stor := storage.NewMemStorage()
-	config := config.ServerConfig{Host: "localhost:8080"}
+	config := testServerConfig()
 	auditService := audit.NewAuditService()
 
-	serverService, err := NewServerService(&config, stor, auditService)
+	serverService, err := server.NewServerService(config, stor, auditService)
 	require.NoError(t, err)
 
-	ts := httptest.NewServer(metricsRouter(serverService))
+	mService, err := NewMetricsServer(config, serverService)
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(metricsRouter(mService))
 	defer ts.Close()
 
 	tests := []testCase{
@@ -231,13 +252,16 @@ func TestRouter_Get(t *testing.T) {
 func TestRouter_Compression(t *testing.T) {
 
 	stor := storage.NewMemStorage()
-	config := config.ServerConfig{Host: "localhost:8080"}
+	config := testServerConfig()
 	auditService := audit.NewAuditService()
 
-	serverService, err := NewServerService(&config, stor, auditService)
+	serverService, err := server.NewServerService(config, stor, auditService)
 	require.NoError(t, err)
 
-	ts := httptest.NewServer(metricsRouter(serverService))
+	mService, err := NewMetricsServer(config, serverService)
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(metricsRouter(mService))
 	defer ts.Close()
 
 	tests := []testCase{
@@ -286,13 +310,16 @@ func TestRouter_Compression(t *testing.T) {
 func TestRouter_UpdateURL(t *testing.T) {
 
 	stor := storage.NewMemStorage()
-	config := config.ServerConfig{Host: "localhost:8080"}
+	config := testServerConfig()
 	auditService := audit.NewAuditService()
 
-	serverService, err := NewServerService(&config, stor, auditService)
+	serverService, err := server.NewServerService(config, stor, auditService)
 	require.NoError(t, err)
 
-	ts := httptest.NewServer(metricsRouter(serverService))
+	mService, err := NewMetricsServer(config, serverService)
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(metricsRouter(mService))
 	defer ts.Close()
 
 	tests := []testCase{
@@ -375,13 +402,16 @@ func TestRouter_UpdateURL(t *testing.T) {
 func TestRouter_GetList(t *testing.T) {
 
 	stor := storage.NewMemStorage()
-	config := config.ServerConfig{Host: "localhost:8080"}
+	config := testServerConfig()
 	auditService := audit.NewAuditService()
 
-	serverService, err := NewServerService(&config, stor, auditService)
+	serverService, err := server.NewServerService(config, stor, auditService)
 	require.NoError(t, err)
 
-	ts := httptest.NewServer(metricsRouter(serverService))
+	mService, err := NewMetricsServer(config, serverService)
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(metricsRouter(mService))
 	defer ts.Close()
 
 	tests := []testCase{
@@ -432,13 +462,16 @@ func TestRouter_GetList(t *testing.T) {
 func TestRouter_GetURL(t *testing.T) {
 
 	stor := storage.NewMemStorage()
-	config := config.ServerConfig{Host: "localhost:8080"}
+	config := testServerConfig()
 	auditService := audit.NewAuditService()
 
-	serverService, err := NewServerService(&config, stor, auditService)
+	serverService, err := server.NewServerService(config, stor, auditService)
 	require.NoError(t, err)
 
-	ts := httptest.NewServer(metricsRouter(serverService))
+	mService, err := NewMetricsServer(config, serverService)
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(metricsRouter(mService))
 	defer ts.Close()
 
 	tests := []testCase{
@@ -565,7 +598,7 @@ func TestGzipCompression(t *testing.T) {
 	require.NoError(t, err)
 	auditService := audit.NewAuditService()
 
-	serverService, err := NewServerService(config, stor, auditService)
+	serverService, err := server.NewServerService(config, stor, auditService)
 	require.NoError(t, err)
 
 	handler := http.HandlerFunc(compression.GzipMiddleware(handler.GetValueHandler(serverService)))

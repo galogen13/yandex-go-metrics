@@ -1,4 +1,4 @@
-package agent
+package connector
 
 import (
 	"errors"
@@ -8,13 +8,13 @@ import (
 	"github.com/galogen13/yandex-go-metrics/internal/retry"
 )
 
-type AgentErrorClassifier struct{}
+type HTTPConnectorErrorClassifier struct{}
 
-func NewAgentErrorClassifier() *AgentErrorClassifier {
-	return &AgentErrorClassifier{}
+func NewHTTPConnectorErrorClassifier() *HTTPConnectorErrorClassifier {
+	return &HTTPConnectorErrorClassifier{}
 }
 
-func (c *AgentErrorClassifier) Classify(err error) retry.ErrorClassification {
+func (c *HTTPConnectorErrorClassifier) Classify(err error) retry.ErrorClassification {
 	if err == nil {
 		return retry.NonRetriable
 	}

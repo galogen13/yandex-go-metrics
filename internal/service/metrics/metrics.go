@@ -179,3 +179,47 @@ func GetMetricIDs(metrics []*Metric) []string {
 	}
 	return mNames
 }
+
+func (m *Metric) DeepCopy() *Metric {
+	copyMetric := &Metric{
+		ID:       m.ID,
+		MType:    m.MType,
+		ValueStr: m.ValueStr,
+	}
+
+	if m.Delta != nil {
+		deltaCopy := *m.Delta
+		copyMetric.Delta = &deltaCopy
+	}
+
+	if m.Value != nil {
+		valueCopy := *m.Value
+		copyMetric.Value = &valueCopy
+	}
+
+	return copyMetric
+}
+
+func CopyMetricsSlice(original []*Metric) []Metric {
+	copy := make([]Metric, len(original))
+
+	for i, metric := range original {
+		copy[i] = Metric{
+			ID:       metric.ID,
+			MType:    metric.MType,
+			ValueStr: metric.ValueStr,
+		}
+
+		if metric.Delta != nil {
+			delta := *metric.Delta
+			copy[i].Delta = &delta
+		}
+
+		if metric.Value != nil {
+			value := *metric.Value
+			copy[i].Value = &value
+		}
+	}
+
+	return copy
+}

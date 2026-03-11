@@ -52,3 +52,16 @@ func GetLocalIP() (string, error) {
 	}
 	return "", fmt.Errorf("no local IP address found")
 }
+
+func GetTrustedSubnet(trustedSubnetStr string) (*net.IPNet, error) {
+	if trustedSubnetStr == "" {
+		return nil, nil
+	}
+
+	_, ipNet, err := net.ParseCIDR(trustedSubnetStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid trusted subnet format: %w", err)
+	}
+
+	return ipNet, nil
+}

@@ -1,4 +1,4 @@
-package server
+package httpserver
 
 import (
 	"net/http"
@@ -17,57 +17,57 @@ const (
 	respContentTypeTextPlain = "text/plain; charset=utf-8"
 )
 
-func metricsRouter(server handler.Server) *chi.Mux {
+func metricsRouter(server *MetricsServer) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(
 		logger.RequestLogger(),
-		trusted.TrustedSubnetMiddleware(server.TrustedSubnet()),
+		trusted.TrustedSubnetMiddleware(server.trustedSubnet),
 	)
 
 	r.NotFound(notFoundHandler())
 	r.MethodNotAllowed(methodNotAllowedHandler())
 
-	listHandler := handler.GetListHandler(server)
+	listHandler := handler.GetListHandler(server.serverService)
 	listHandler = compression.GzipMiddleware(listHandler)
 	r.Get("/", listHandler)
 
 	r.Route("/ping", func(r chi.Router) {
-		r.Get("/", handler.PingStorageHandler(server))
+		r.Get("/", handler.PingStorageHandler(server.serverService))
 	})
 
 	r.Route("/update", func(r chi.Router) {
-		updateHandler := handler.UpdateHandler(server)
+		updateHandler := handler.UpdateHandler(server.serverService)
 		updateHandler = compression.GzipMiddleware(updateHandler)
-		updateHandler = validation.HashValidation(server.Key(), updateHandler)
-		if server.Decryptor() != nil {
-			updateHandler = crypto.DecryptMiddleware(server.Decryptor(), updateHandler)
+		updateHandler = validation.HashValidation(server.key, updateHandler)
+		if server.decryptor != nil {
+			updateHandler = crypto.DecryptMiddleware(server.decryptor, updateHandler)
 		}
 		r.Post("/", updateHandler)
 
-		r.Post("/{mType}/{metrics}/{value}", handler.UpdateURLHandler(server))
+		r.Post("/{mType}/{metrics}/{value}", handler.UpdateURLHandler(server.serverService))
 	})
 
 	r.Route("/updates", func(r chi.Router) {
-		updatesHandler := handler.UpdatesHandler(server)
+		updatesHandler := handler.UpdatesHandler(server.serverService)
 		updatesHandler = compression.GzipMiddleware(updatesHandler)
-		updatesHandler = validation.HashValidation(server.Key(), updatesHandler)
-		if server.Decryptor() != nil {
-			updatesHandler = crypto.DecryptMiddleware(server.Decryptor(), updatesHandler)
+		updatesHandler = validation.HashValidation(server.key, updatesHandler)
+		if server.decryptor != nil {
+			updatesHandler = crypto.DecryptMiddleware(server.decryptor, updatesHandler)
 		}
 		r.Post("/", updatesHandler)
 	})
 
 	r.Route("/value", func(r chi.Router) {
-		valueHandler := handler.GetValueHandler(server)
+		valueHandler := handler.GetValueHandler(server.serverService)
 		valueHandler = compression.GzipMiddleware(valueHandler)
-		valueHandler = validation.HashValidation(server.Key(), valueHandler)
-		if server.Decryptor() != nil {
-			valueHandler = crypto.DecryptMiddleware(server.Decryptor(), valueHandler)
+		valueHandler = validation.HashValidation(server.key, valueHandler)
+		if server.decryptor != nil {
+			valueHandler = crypto.DecryptMiddleware(server.decryptor, valueHandler)
 		}
 		r.Post("/", valueHandler)
 
-		r.Get("/{mType}/{metrics}", handler.GetValueURLHandler(server))
+		r.Get("/{mType}/{metrics}", handler.GetValueURLHandler(server.serverService))
 	})
 
 	return r

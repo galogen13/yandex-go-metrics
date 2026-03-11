@@ -1,33 +1,33 @@
-package server
+package httpserver
 
 import (
 	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 
-	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
 )
 
 // mockServer реализует интерфейс handler.Server для тестирования.
-type mockServer struct {
+type mockServerService struct {
+	storeInterval  int
+	restoreStorage bool
 }
 
-func (m *mockServer) UpdateMetric(ctx context.Context, metric *metrics.Metric, addInfo addinfo.AddInfo) error {
+func (m mockServerService) UpdateMetric(ctx context.Context, metric *metrics.Metric, addInfo addinfo.AddInfo) error {
 	return nil
 }
 
-func (m *mockServer) UpdateMetrics(ctx context.Context, metrics []*metrics.Metric, addInfo addinfo.AddInfo) error {
+func (m mockServerService) UpdateMetrics(ctx context.Context, metrics []*metrics.Metric, addInfo addinfo.AddInfo) error {
 	return nil
 }
 
-func (m *mockServer) GetMetric(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error) {
+func (m mockServerService) GetMetric(ctx context.Context, metric *metrics.Metric) (*metrics.Metric, error) {
 	if metric.ID == "Alloc" && metric.MType == metrics.Gauge {
 		metric := metrics.NewMetrics("Alloc", metrics.Gauge)
 		metric.UpdateValue(123.45)
@@ -36,38 +36,25 @@ func (m *mockServer) GetMetric(ctx context.Context, metric *metrics.Metric) (*me
 	return nil, metrics.ErrMetricNotFound
 }
 
-func (m *mockServer) GetAllMetrics(ctx context.Context) ([]*metrics.Metric, error) {
+func (m mockServerService) GetAllMetrics(ctx context.Context) ([]*metrics.Metric, error) {
 	return []*metrics.Metric{
 		{ID: "Alloc", MType: metrics.Gauge, Value: func() *float64 { v := 123.45; return &v }()},
 		{ID: "PollCount", MType: metrics.Counter, Delta: func() *int64 { v := int64(42); return &v }()},
 	}, nil
 }
 
-func (m *mockServer) PingStorage(ctx context.Context) error {
+func (m mockServerService) PingStorage(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockServer) Key() string {
-	return "test-key"
-}
-
-func (m *mockServer) Decryptor() *crypto.Decryptor {
+func (m mockServerService) Start(ctx context.Context) error {
 	return nil
-}
-
-func (m *mockServer) TrustedSubnet() *net.IPNet {
-	return nil
-}
-
-func (m *mockServer) ShutdownTrackingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	})
 }
 
 // Example_metricsRouter демонстрирует создание и использование роутера метрик.
 func Example_metricsRouter() {
 	// Создаем mock сервер
-	server := &mockServer{}
+	server := mockServer()
 
 	// Создаем роутер
 	router := metricsRouter(server)
@@ -94,9 +81,21 @@ func Example_metricsRouter() {
 	// Status: 200, Is HTML: true
 }
 
+func mockServer() *MetricsServer {
+	server := &MetricsServer{
+		serverService: mockServerService{
+			storeInterval:  0,
+			restoreStorage: false},
+	}
+	return server
+}
+
 // Example_metricsRouter_ping демонстрирует использование endpoint /ping.
 func Example_metricsRouter_ping() {
-	server := &mockServer{}
+	// Создаем mock сервер
+	server := mockServer()
+
+	// Создаем роутер
 	router := metricsRouter(server)
 	testServer := httptest.NewServer(router)
 	defer testServer.Close()
@@ -115,7 +114,10 @@ func Example_metricsRouter_ping() {
 
 // Example_metricsRouter_update демонстрирует обновление метрики через URL.
 func Example_metricsRouter_update() {
-	server := &mockServer{}
+	// Создаем mock сервер
+	server := mockServer()
+
+	// Создаем роутер
 	router := metricsRouter(server)
 	testServer := httptest.NewServer(router)
 	defer testServer.Close()
@@ -134,7 +136,10 @@ func Example_metricsRouter_update() {
 
 // Example_metricsRouter_update_json демонстрирует обновление метрики в формате JSON.
 func Example_metricsRouter_update_json() {
-	server := &mockServer{}
+	// Создаем mock сервер
+	server := mockServer()
+
+	// Создаем роутер
 	router := metricsRouter(server)
 	testServer := httptest.NewServer(router)
 	defer testServer.Close()
@@ -159,7 +164,10 @@ func Example_metricsRouter_update_json() {
 
 // Example_metricsRouter_value демонстрирует получение значения метрики через URL.
 func Example_metricsRouter_value() {
-	server := &mockServer{}
+	// Создаем mock сервер
+	server := mockServer()
+
+	// Создаем роутер
 	router := metricsRouter(server)
 	testServer := httptest.NewServer(router)
 	defer testServer.Close()
@@ -180,7 +188,9 @@ func Example_metricsRouter_value() {
 
 // Example_metricsRouter_value_json демонстрирует получение значения метрики в формате JSON.
 func Example_metricsRouter_value_json() {
-	server := &mockServer{}
+	// Создаем mock сервер
+	server := mockServer()
+	// Создаем роутер
 	router := metricsRouter(server)
 	testServer := httptest.NewServer(router)
 	defer testServer.Close()
@@ -207,7 +217,10 @@ func Example_metricsRouter_value_json() {
 
 // Example_metricsRouter_updates демонстрирует массовое обновление метрик.
 func Example_metricsRouter_updates() {
-	server := &mockServer{}
+	// Создаем mock сервер
+	server := mockServer()
+
+	// Создаем роутер
 	router := metricsRouter(server)
 	testServer := httptest.NewServer(router)
 	defer testServer.Close()
