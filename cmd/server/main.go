@@ -77,11 +77,11 @@ func run() error {
 		return fmt.Errorf("failed to start new server service: %w", err)
 	}
 
-	type mServerI interface {
+	type merticsServer interface {
 		Start(ctx context.Context) error
 	}
 
-	var mServer mServerI
+	var mServer merticsServer
 
 	if config.UseGRPC {
 		mServer, err = grpcserver.NewMetricsServer(config, serverService)

@@ -16,14 +16,14 @@ import (
 )
 
 type MetricsServer struct {
-	serverService handler.ServerI
+	serverService handler.ServerService
 	decryptor     *crypto.Decryptor
 	host          string
 	key           string
 	trustedSubnet *net.IPNet
 }
 
-func NewMetricsServer(config *config.ServerConfig, ss handler.ServerI) (*MetricsServer, error) {
+func NewMetricsServer(config *config.ServerConfig, ss handler.ServerService) (*MetricsServer, error) {
 
 	trustedSubnet, err := trusted.GetTrustedSubnet(config.TrustedSubnet)
 	if err != nil {
