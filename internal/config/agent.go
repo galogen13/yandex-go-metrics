@@ -18,6 +18,7 @@ type AgentConfig struct {
 	Key            string `json:"key" mapstructure:"key"`                         // ключ
 	RateLimit      int    `json:"rate_limit" mapstructure:"rate_limit"`           // максимальное количество горутин, одновременно отправляющих данные на сервер
 	CryptoKeyPath  string `json:"crypto_key" mapstructure:"crypto_key"`           // путь к публичному ключу
+	UseGRPC        bool   `json:"use_grpc" mapstructure:"use_grpc"`               // использовать gRPC
 }
 
 type FileAgentConfig struct {
@@ -27,6 +28,7 @@ type FileAgentConfig struct {
 	Key            string `json:"key"`             // ключ
 	RateLimit      int    `json:"rate_limit"`      // максимальное количество горутин, одновременно отправляющих данные на сервер
 	CryptoKeyPath  string `json:"crypto_key"`      // путь к публичному ключу
+	UseGRPC        bool   `json:"use_grpc"`
 }
 
 func GetAgentConfig() (AgentConfig, error) {
@@ -38,6 +40,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	viper.SetDefault("rate_limit", 1)
 	viper.SetDefault("crypto_key", "")
 	viper.SetDefault("config", "")
+	viper.SetDefault("use_grpc", false)
 
 	pflag.StringP("address", "a", viper.GetString("address"), "server address")
 	pflag.IntP("report-interval", "r", viper.GetInt("report_interval"), "report interval")
@@ -46,6 +49,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	pflag.StringP("key", "k", viper.GetString("key"), "secret key")
 	pflag.String("crypto-key", viper.GetString("crypto_key"), "path to crypto key")
 	pflag.StringP("config", "c", viper.GetString("config"), "path to configuration file")
+	pflag.Bool("use-grpc", viper.GetBool("use_grpc"), "use gRPC client as transport")
 	pflag.Parse()
 
 	configPath := os.Getenv("CONFIG")
@@ -70,6 +74,7 @@ func GetAgentConfig() (AgentConfig, error) {
 	viper.BindEnv("rate_limit", "RATE_LIMIT")
 	viper.BindEnv("crypto_key", "CRYPTO_KEY")
 	viper.BindEnv("config", "CONFIG")
+	viper.BindEnv("use_grpc", "USE_GRPC")
 
 	var cfg AgentConfig
 
@@ -123,6 +128,9 @@ func parseAgentConfigFile(configPath string) error {
 	}
 	if fileConfig.RateLimit != 0 {
 		viper.Set("rate_limit", fileConfig.RateLimit)
+	}
+	if fileConfig.UseGRPC {
+		viper.Set("use_grpc", fileConfig.UseGRPC)
 	}
 
 	return nil

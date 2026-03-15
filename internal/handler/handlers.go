@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
 	addinfo "github.com/galogen13/yandex-go-metrics/internal/service/additional-info"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
@@ -28,7 +27,7 @@ const (
 // Server определяет интерфейс сервиса для работы с метриками.
 // Реализации должны предоставлять методы для обновления, получения
 // и проверки состояния метрик.
-type Server interface {
+type ServerService interface {
 	// UpdateMetric обновляет одиночную метрику.
 	// Принимает контекст, метрику и дополнительную информацию.
 	// Возвращает ошибку в случае неудачи.
@@ -53,12 +52,6 @@ type Server interface {
 	// Принимает контекст выполнения.
 	// Возвращает ошибку если хранилище недоступно.
 	PingStorage(ctx context.Context) error
-
-	// Key возвращает ключ для подписи метрик.
-	Key() string
-
-	// Decryptor возвращает декриптор для расщифровки сообщений
-	Decryptor() *crypto.Decryptor
 }
 
 // PingStorageHandler возвращает HTTP-обработчик для проверки доступности хранилища.
@@ -72,7 +65,7 @@ type Server interface {
 // Пример успешного ответа:
 //
 //	HTTP/1.1 200 OK
-func PingStorageHandler(serverService Server) http.HandlerFunc {
+func PingStorageHandler(serverService ServerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		ctx := r.Context()
@@ -101,7 +94,7 @@ func PingStorageHandler(serverService Server) http.HandlerFunc {
 //	Content-Type: text/html; charset=utf-8
 //
 //	<html>...список метрик...</html>
-func GetListHandler(serverService Server) http.HandlerFunc {
+func GetListHandler(serverService ServerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		ctx := r.Context()
@@ -155,7 +148,7 @@ func GetListHandler(serverService Server) http.HandlerFunc {
 //   - 400 Bad Request - некорректный запрос
 //   - 404 Not Found - метрика не найдена
 //   - 500 Internal Server Error - внутренняя ошибка сервера
-func GetValueHandler(serverService Server) http.HandlerFunc {
+func GetValueHandler(serverService ServerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		ctx := r.Context()
@@ -215,7 +208,7 @@ func GetValueHandler(serverService Server) http.HandlerFunc {
 // В случае ошибки возвращает:
 //   - 400 Bad Request - некорректный запрос или валидация
 //   - 500 Internal Server Error - внутренняя ошибка сервера
-func UpdateHandler(serverService Server) http.HandlerFunc {
+func UpdateHandler(serverService ServerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		ctx := r.Context()
@@ -273,7 +266,7 @@ func UpdateHandler(serverService Server) http.HandlerFunc {
 // В случае ошибки возвращает:
 //   - 400 Bad Request - некорректный запрос или валидация
 //   - 500 Internal Server Error - внутренняя ошибка сервера
-func UpdatesHandler(serverService Server) http.HandlerFunc {
+func UpdatesHandler(serverService ServerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		ctx := r.Context()
@@ -320,7 +313,7 @@ func UpdatesHandler(serverService Server) http.HandlerFunc {
 // В случае ошибки возвращает:
 //   - 404 Not Found - метрика не найдена
 //   - 500 Internal Server Error - внутренняя ошибка сервера
-func GetValueURLHandler(serverService Server) http.HandlerFunc {
+func GetValueURLHandler(serverService ServerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		ctx := r.Context()
@@ -365,7 +358,7 @@ func GetValueURLHandler(serverService Server) http.HandlerFunc {
 // В случае ошибки возвращает:
 //   - 400 Bad Request - некорректный тип, имя или значение метрики
 //   - 500 Internal Server Error - внутренняя ошибка сервера
-func UpdateURLHandler(serverService Server) http.HandlerFunc {
+func UpdateURLHandler(serverService ServerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		ctx := r.Context()
