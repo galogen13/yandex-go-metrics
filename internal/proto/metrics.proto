@@ -1,8 +1,10 @@
-syntax = "proto3";
+edition = "2023";
 
 package metrics;
+import "google/protobuf/go_features.proto";
 
 option go_package = "github.com/galogen13/yandex-go-metrics/internal/proto";
+option features.(pb.go).api_level = API_OPAQUE;
 
 message Metric {
   string id = 1;

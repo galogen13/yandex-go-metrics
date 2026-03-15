@@ -9,6 +9,7 @@ package proto
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	_ "google.golang.org/protobuf/types/gofeaturespb"
 	reflect "reflect"
 	unsafe "unsafe"
 )
@@ -62,13 +63,15 @@ func (x Metric_MType) Number() protoreflect.EnumNumber {
 }
 
 type Metric struct {
-	state            protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Id    string                 `protobuf:"bytes,1,opt,name=id,proto3"`
-	xxx_hidden_Type  Metric_MType           `protobuf:"varint,2,opt,name=type,proto3,enum=metrics.Metric_MType"`
-	xxx_hidden_Delta int64                  `protobuf:"varint,3,opt,name=delta,proto3"`
-	xxx_hidden_Value float64                `protobuf:"fixed64,4,opt,name=value,proto3"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Id          *string                `protobuf:"bytes,1,opt,name=id"`
+	xxx_hidden_Type        Metric_MType           `protobuf:"varint,2,opt,name=type,enum=metrics.Metric_MType"`
+	xxx_hidden_Delta       int64                  `protobuf:"varint,3,opt,name=delta"`
+	xxx_hidden_Value       float64                `protobuf:"fixed64,4,opt,name=value"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *Metric) Reset() {
@@ -98,14 +101,19 @@ func (x *Metric) ProtoReflect() protoreflect.Message {
 
 func (x *Metric) GetId() string {
 	if x != nil {
-		return x.xxx_hidden_Id
+		if x.xxx_hidden_Id != nil {
+			return *x.xxx_hidden_Id
+		}
+		return ""
 	}
 	return ""
 }
 
 func (x *Metric) GetType() Metric_MType {
 	if x != nil {
-		return x.xxx_hidden_Type
+		if protoimpl.X.Present(&(x.XXX_presence[0]), 1) {
+			return x.xxx_hidden_Type
+		}
 	}
 	return Metric_GAUGE
 }
@@ -125,44 +133,108 @@ func (x *Metric) GetValue() float64 {
 }
 
 func (x *Metric) SetId(v string) {
-	x.xxx_hidden_Id = v
+	x.xxx_hidden_Id = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 4)
 }
 
 func (x *Metric) SetType(v Metric_MType) {
 	x.xxx_hidden_Type = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 4)
 }
 
 func (x *Metric) SetDelta(v int64) {
 	x.xxx_hidden_Delta = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 4)
 }
 
 func (x *Metric) SetValue(v float64) {
 	x.xxx_hidden_Value = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 4)
+}
+
+func (x *Metric) HasId() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *Metric) HasType() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *Metric) HasDelta() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
+}
+
+func (x *Metric) HasValue() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
+}
+
+func (x *Metric) ClearId() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Id = nil
+}
+
+func (x *Metric) ClearType() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_Type = Metric_GAUGE
+}
+
+func (x *Metric) ClearDelta() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	x.xxx_hidden_Delta = 0
+}
+
+func (x *Metric) ClearValue() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	x.xxx_hidden_Value = 0
 }
 
 type Metric_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Id    string
-	Type  Metric_MType
-	Delta int64
-	Value float64
+	Id    *string
+	Type  *Metric_MType
+	Delta *int64
+	Value *float64
 }
 
 func (b0 Metric_builder) Build() *Metric {
 	m0 := &Metric{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.xxx_hidden_Id = b.Id
-	x.xxx_hidden_Type = b.Type
-	x.xxx_hidden_Delta = b.Delta
-	x.xxx_hidden_Value = b.Value
+	if b.Id != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 4)
+		x.xxx_hidden_Id = b.Id
+	}
+	if b.Type != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 4)
+		x.xxx_hidden_Type = *b.Type
+	}
+	if b.Delta != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 4)
+		x.xxx_hidden_Delta = *b.Delta
+	}
+	if b.Value != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 4)
+		x.xxx_hidden_Value = *b.Value
+	}
 	return m0
 }
 
 type UpdateMetricsRequest struct {
 	state              protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Metrics *[]*Metric             `protobuf:"bytes,1,rep,name=metrics,proto3"`
+	xxx_hidden_Metrics *[]*Metric             `protobuf:"bytes,1,rep,name=metrics"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -266,7 +338,7 @@ var File_internal_proto_metrics_proto protoreflect.FileDescriptor
 
 const file_internal_proto_metrics_proto_rawDesc = "" +
 	"\n" +
-	"\x1cinternal/proto/metrics.proto\x12\ametrics\"\x90\x01\n" +
+	"\x1cinternal/proto/metrics.proto\x12\ametrics\x1a!google/protobuf/go_features.proto\"\x90\x01\n" +
 	"\x06Metric\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.metrics.Metric.MTypeR\x04type\x12\x14\n" +
@@ -279,7 +351,7 @@ const file_internal_proto_metrics_proto_rawDesc = "" +
 	"\ametrics\x18\x01 \x03(\v2\x0f.metrics.MetricR\ametrics\"\x17\n" +
 	"\x15UpdateMetricsResponse2Y\n" +
 	"\aMetrics\x12N\n" +
-	"\rUpdateMetrics\x12\x1d.metrics.UpdateMetricsRequest\x1a\x1e.metrics.UpdateMetricsResponseB7Z5github.com/galogen13/yandex-go-metrics/internal/protob\x06proto3"
+	"\rUpdateMetrics\x12\x1d.metrics.UpdateMetricsRequest\x1a\x1e.metrics.UpdateMetricsResponseB?Z5github.com/galogen13/yandex-go-metrics/internal/proto\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
 var file_internal_proto_metrics_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_internal_proto_metrics_proto_msgTypes = make([]protoimpl.MessageInfo, 3)

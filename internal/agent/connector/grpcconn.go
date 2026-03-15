@@ -37,26 +37,41 @@ func (c GRPCConnector) SendMetrics(ctx context.Context, curMetrics []metrics.Met
 	client := proto.NewMetricsClient(c.client)
 
 	pbMetrics := make([]*proto.Metric, 0, len(curMetrics))
+
 	for _, metric := range curMetrics {
 
-		pbMetric := proto.Metric{
-			Id:   metric.ID,
-			Type: *pbMTypeByMType(metric.MType),
-		}
-
+		pbMetric := proto.Metric_builder{}.Build()
+		// pbMetric := proto
+		pbMetric.SetId(metric.ID)
+		pbMetric.SetType(*pbMTypeByMType(metric.MType))
 		switch metric.MType {
 		case metrics.Counter:
-			pbMetric.Delta = *metric.Delta
+			pbMetric.SetDelta(*metric.Delta)
 		case metrics.Gauge:
-			pbMetric.Value = *metric.Value
+			pbMetric.SetValue(*metric.Value)
 		}
 
-		pbMetrics = append(pbMetrics, &pbMetric)
+		// // pbMetric.S
+		// pbMetric := proto.Metric{
+		// 	Id:   metric.ID,
+		// 	Type: *pbMTypeByMType(metric.MType),
+		// }
+
+		// switch metric.MType {
+		// case metrics.Counter:
+		// 	pbMetric.Delta = *metric.Delta
+		// case metrics.Gauge:
+		// 	pbMetric.Value = *metric.Value
+		// }
+
+		pbMetrics = append(pbMetrics, pbMetric)
 	}
 
 	ctxData := metadata.AppendToOutgoingContext(ctx, "x-real-ip", localIP)
 
-	req := &proto.UpdateMetricsRequest{Metrics: pbMetrics}
+	// req := &proto.UpdateMetricsRequest{Metrics: pbMetrics}
+	req := proto.UpdateMetricsRequest_builder{}.Build()
+	req.SetMetrics(pbMetrics)
 
 	_, err := client.UpdateMetrics(ctxData, req)
 	if err != nil {

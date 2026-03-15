@@ -77,6 +77,5 @@ proto-gen-server:
 
 proto-gen-server-opaque:
 	protoc --go_out=. --go_opt=paths=source_relative \
-		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		--go_opt=default_api_level=API_OPAQUE \
-		$(PROTO_DIR)/metrics.proto
+       --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+       $(PROTO_DIR)/metrics.proto
