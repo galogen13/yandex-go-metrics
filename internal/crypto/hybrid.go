@@ -102,31 +102,33 @@ func GenerateKeys() (privateKeyPEM, publicKeyPEM string, err error) {
 	return encryption.GenerateKeyPair()
 }
 
-func DecryptMiddleware(d *Decryptor, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if d == nil {
+func DecryptMiddleware(d *Decryptor) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if d == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			ciphertext, err := io.ReadAll(r.Body)
+			if err != nil {
+				logger.Log.Error("unexpected error reading request body", zap.Error(err))
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			r.Body.Close()
+
+			plaintext, err := d.Decrypt(ciphertext)
+			if err != nil {
+				logger.Log.Error("Decryption failed", zap.Error(err))
+				http.Error(w, "Decryption failed", http.StatusBadRequest)
+				return
+			}
+
+			r.Body = io.NopCloser(bytes.NewReader(plaintext))
+			r.ContentLength = int64(len(plaintext))
+
 			next.ServeHTTP(w, r)
-			return
-		}
-
-		ciphertext, err := io.ReadAll(r.Body)
-		if err != nil {
-			logger.Log.Error("unexpected error reading request body", zap.Error(err))
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		r.Body.Close()
-
-		plaintext, err := d.Decrypt(ciphertext)
-		if err != nil {
-			logger.Log.Error("Decryption failed", zap.Error(err))
-			http.Error(w, "Decryption failed", http.StatusBadRequest)
-			return
-		}
-
-		r.Body = io.NopCloser(bytes.NewReader(plaintext))
-		r.ContentLength = int64(len(plaintext))
-
-		next.ServeHTTP(w, r)
+		})
 	}
 }

@@ -45,12 +45,9 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand/v2"
-	"net/http"
-	"net/url"
 	"os/signal"
 	"runtime"
 	"sync"
@@ -60,16 +57,12 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 
-	"github.com/galogen13/yandex-go-metrics/internal/compression"
+	"github.com/galogen13/yandex-go-metrics/internal/agent/connector"
 	"github.com/galogen13/yandex-go-metrics/internal/config"
-	"github.com/galogen13/yandex-go-metrics/internal/crypto"
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
-	"github.com/galogen13/yandex-go-metrics/internal/retry"
 	"github.com/galogen13/yandex-go-metrics/internal/service/metrics"
-	"github.com/galogen13/yandex-go-metrics/internal/validation"
+	"github.com/galogen13/yandex-go-metrics/internal/trusted"
 	"go.uber.org/zap"
-
-	"github.com/go-resty/resty/v2"
 )
 
 const (
@@ -83,13 +76,19 @@ const (
 type Agent struct {
 	// metrics - слайс метрик, собранных агентом
 	metrics        []*metrics.Metric
-	muxMetrics     *sync.Mutex
+	muxMetrics     *sync.RWMutex
 	muxPollCounter *sync.Mutex
 	// config - структура с параметрами работы агента
 	config config.AgentConfig
 	// PollCount - метрика-счетчик, которая накапливает количество попыток сбора метрик из пакета runtime
 	PollCount int64
-	encryptor *crypto.Encryptor
+	localIP   string
+	conn      sendConnector
+}
+
+type sendConnector interface {
+	SendMetrics(ctx context.Context, metrics []metrics.Metric, localIP string) error
+	Close()
 }
 
 func (agent *Agent) increasePollСounter() {
@@ -120,6 +119,7 @@ func Start(config config.AgentConfig) error {
 		zap.Int("PollInterval", config.PollInterval),
 		zap.Any("ReportInterval", config.ReportInterval),
 		zap.Int("RateLimit", config.RateLimit),
+		zap.Bool("UseGRPC", config.UseGRPC),
 	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
@@ -166,6 +166,8 @@ loop:
 		logger.Log.Info("last metrics sending")
 		agent.sendMetrics() // последняя отправка
 
+		agent.conn.Close()
+
 		logger.Log.Info("agent stopped gracefully")
 		return nil
 	}
@@ -190,16 +192,33 @@ func (agent *Agent) startSendWorker(ctx context.Context, wg *sync.WaitGroup, job
 
 // NewAgent инициализирует структуру агента с параметрами настройки
 func NewAgent(agentConfig config.AgentConfig) (*Agent, error) {
-	encryptor, err := crypto.NewEncryptor(agentConfig.CryptoKeyPath)
+
+	localIP, err := trusted.GetLocalIP()
 	if err != nil {
-		return nil, fmt.Errorf("cannot initialize encryptor: %w", err)
+		return nil, fmt.Errorf("cannot get local IP: %w", err)
 	}
+
+	var conn sendConnector
+	if agentConfig.UseGRPC {
+		conn, err = connector.NewGRPCConnector(agentConfig)
+		if err != nil {
+			return nil, fmt.Errorf("cannot init HTTP connector: %w", err)
+		}
+	} else {
+		conn, err = connector.NewHTTPConnector(agentConfig)
+		if err != nil {
+			return nil, fmt.Errorf("cannot init HTTP connector: %w", err)
+		}
+	}
+
 	return &Agent{
 			config:         agentConfig,
 			metrics:        []*metrics.Metric{},
-			muxMetrics:     &sync.Mutex{},
+			muxMetrics:     &sync.RWMutex{},
 			muxPollCounter: &sync.Mutex{},
-			encryptor:      encryptor},
+			conn:           conn,
+			localIP:        localIP,
+		},
 		nil
 }
 
@@ -533,12 +552,16 @@ func newCounterMetric(mID string, value int64) (*metrics.Metric, error) {
 
 func (agent *Agent) sendMetrics() {
 
-	agent.muxMetrics.Lock()
+	agent.muxMetrics.RLock()
 	if len(agent.metrics) == 0 {
 		logger.Log.Info("nothing to send")
 		return
 	}
-	currentPollCounterMetricValue := agent.metrics[len(agent.metrics)-1].GetValue() // последняя метрика - PollCounter
+
+	metricsCopy := metrics.CopyMetricsSlice(agent.metrics)
+	agent.muxMetrics.RUnlock()
+
+	currentPollCounterMetricValue := metricsCopy[len(metricsCopy)-1].GetValue() // последняя метрика - PollCounter
 	currentPollCounter, err := metrics.CounterValue(currentPollCounterMetricValue)
 	if err != nil {
 		logger.Log.Error("cannot read currentPollCounter", zap.Error(err))
@@ -546,68 +569,15 @@ func (agent *Agent) sendMetrics() {
 	}
 
 	logger.Log.Debug("prepairing to send metrics batch",
-		zap.Any("metrics", agent.metrics),
+		zap.Any("metrics", metricsCopy),
 	)
 
-	bodyBytes, err := json.Marshal(agent.metrics)
-	agent.muxMetrics.Unlock()
-	if err != nil {
-		logger.Log.Error("error while marshalling metrics", zap.Error(err))
-		return
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	compressed, err := compression.GzipCompress(bodyBytes)
-	if err != nil {
-		logger.Log.Error("error while gzip compress metrics", zap.Error(err))
-		return
-	}
-
-	body, err := agent.encryptor.Encrypt(compressed.Bytes())
-	if err != nil {
-		logger.Log.Error("failed to encrypt data", zap.Error(err))
-		return
-	}
-
-	client := resty.New()
-	client.SetRedirectPolicy(resty.RedirectPolicyFunc(
-		func(req *http.Request, _ []*http.Request) error {
-			req.Method = http.MethodPost
-			return nil
-		}))
-
-	req := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("Content-Encoding", "gzip").
-		SetBody(body)
-
-	if agent.config.Key != "" {
-		hash := validation.CalculateHMAC(body, agent.config.Key)
-		req.SetHeader("HashSHA256", hash)
-	}
-
-	baseURL := &url.URL{
-		Scheme: "http",
-		Host:   agent.config.Host,
-		Path:   "updates",
-	}
-	fullURL := baseURL.String()
-
-	resp, err := retry.DoWithResult(
-		context.Background(),
-		func() (*resty.Response, error) {
-			return req.Post(fullURL)
-		},
-		NewAgentErrorClassifier())
-
+	err = agent.conn.SendMetrics(ctx, metricsCopy, agent.localIP)
 	if err != nil {
 		logger.Log.Error("error sending metrics", zap.Error(err))
-		return
-	}
-
-	logger.Log.Info("data sent", zap.String("url", fullURL), zap.Int("respCode", resp.StatusCode()))
-
-	if resp.StatusCode() != http.StatusOK {
-		logger.Log.Error("unexpected status code", zap.Int("status code", resp.StatusCode()))
 		return
 	}
 

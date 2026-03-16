@@ -41,33 +41,33 @@ type (
 	}
 )
 
-func RequestLogger(next http.HandlerFunc) http.HandlerFunc {
+func RequestLogger() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	return func(w http.ResponseWriter, r *http.Request) {
+			responseData := &responseData{
+				status: 0,
+				size:   0,
+			}
+			lw := loggingResponseWriter{
+				ResponseWriter: w,
+				responseData:   responseData,
+			}
 
-		responseData := &responseData{
-			status: 0,
-			size:   0,
-		}
-		lw := loggingResponseWriter{
-			ResponseWriter: w,
-			responseData:   responseData,
-		}
+			start := time.Now()
 
-		start := time.Now()
+			next.ServeHTTP(&lw, r)
 
-		next(&lw, r)
+			duration := time.Since(start)
 
-		duration := time.Since(start)
-
-		Log.Info("incoming request",
-			zap.String("uri", r.RequestURI),
-			zap.String("method", r.Method),
-			zap.String("duration", duration.String()),
-			zap.Int("status", responseData.status),
-			zap.Int("size", responseData.size),
-		)
-
+			Log.Info("incoming request",
+				zap.String("uri", r.RequestURI),
+				zap.String("method", r.Method),
+				zap.String("duration", duration.String()),
+				zap.Int("status", responseData.status),
+				zap.Int("size", responseData.size),
+			)
+		})
 	}
 }
 

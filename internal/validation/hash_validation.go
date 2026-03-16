@@ -87,40 +87,41 @@ func CalculateHMAC(data []byte, key string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func HashValidation(key string, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func HashValidationMiddleware(key string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			receivedHash := r.Header.Get(hashHeaderKey)
+			if key == "" || receivedHash == "" {
+				next.ServeHTTP(w, r)
+			} else {
 
-		receivedHash := r.Header.Get(hashHeaderKey)
-		if key == "" || receivedHash == "" {
-			next.ServeHTTP(w, r)
-		} else {
+				body, err := readRequestBody(r)
+				if err != nil {
+					logger.Log.Error("unexpected error reading request body", zap.Error(err))
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
 
-			body, err := readRequestBody(r)
-			if err != nil {
-				logger.Log.Error("unexpected error reading request body", zap.Error(err))
-				w.WriteHeader(http.StatusInternalServerError)
-				return
+				expectedHash := CalculateHMAC(body, key)
+
+				hashEquals := hmac.Equal([]byte(receivedHash), []byte(expectedHash))
+				logger.Log.Info("hash check result", zap.Bool("equals", hashEquals), zap.String("key", key))
+
+				if !hashEquals {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
+				hw := NewHashWriter(w, key)
+				next.ServeHTTP(hw, r)
+				err = hw.Flush()
+				if err != nil {
+					logger.Log.Error("unexpected error reading request body", zap.Error(err))
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
 			}
-
-			expectedHash := CalculateHMAC(body, key)
-
-			hashEquals := hmac.Equal([]byte(receivedHash), []byte(expectedHash))
-			logger.Log.Info("hash check result", zap.Bool("equals", hashEquals), zap.String("key", key))
-
-			if !hashEquals {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			hw := NewHashWriter(w, key)
-			next.ServeHTTP(hw, r)
-			err = hw.Flush()
-			if err != nil {
-				logger.Log.Error("unexpected error reading request body", zap.Error(err))
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		}
+		})
 	}
 }
 

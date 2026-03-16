@@ -1,0 +1,30 @@
+edition = "2023";
+
+package metrics;
+import "google/protobuf/go_features.proto";
+
+option go_package = "github.com/galogen13/yandex-go-metrics/internal/proto";
+option features.(pb.go).api_level = API_OPAQUE;
+
+message Metric {
+  string id = 1;
+  
+  enum MType {
+    GAUGE = 0;
+    COUNTER = 1;
+  }
+
+  MType type = 2;
+  int64 delta = 3;
+  double value = 4;
+}
+
+message UpdateMetricsRequest {
+  repeated Metric metrics = 1;
+}
+
+message UpdateMetricsResponse {}
+
+service Metrics {
+  rpc UpdateMetrics(UpdateMetricsRequest) returns (UpdateMetricsResponse);
+}

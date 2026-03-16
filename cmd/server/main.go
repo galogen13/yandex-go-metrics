@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os/signal"
+	"syscall"
 
 	"github.com/galogen13/yandex-go-metrics/internal/audit"
 	"github.com/galogen13/yandex-go-metrics/internal/buildinfo"
@@ -12,6 +14,8 @@ import (
 	memstorage "github.com/galogen13/yandex-go-metrics/internal/repository/memstorage"
 	pgstorage "github.com/galogen13/yandex-go-metrics/internal/repository/pgstorage"
 	"github.com/galogen13/yandex-go-metrics/internal/service/server"
+	grpcserver "github.com/galogen13/yandex-go-metrics/internal/service/server/grpc"
+	httpserver "github.com/galogen13/yandex-go-metrics/internal/service/server/http"
 	"go.uber.org/zap"
 )
 
@@ -42,10 +46,19 @@ func run() error {
 	}
 	defer logger.Log.Sync()
 
+	logger.Log.Info("Running server service",
+		zap.Bool("restore storage", *config.RestoreStorage),
+		zap.Bool("use database as storage", config.UseDatabaseAsStorage),
+		zap.Bool("store periodically", config.StorePeriodically),
+	)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer stop()
+
 	var mStorage server.Storage
 
 	if config.UseDatabaseAsStorage {
-		mStorage, err = pgstorage.NewPGStorage(context.Background(), config.DatabaseDSN)
+		mStorage, err = pgstorage.NewPGStorage(ctx, config.DatabaseDSN)
 		if err != nil {
 			return err
 		}
@@ -60,9 +73,30 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to create new server service: %w", err)
 	}
+	if err = serverService.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start new server service: %w", err)
+	}
 
-	if err := serverService.Start(); err != nil {
-		return err
+	type merticsServer interface {
+		Start(ctx context.Context) error
+	}
+
+	var mServer merticsServer
+
+	if config.UseGRPC {
+		mServer, err = grpcserver.NewMetricsServer(config, serverService)
+		if err != nil {
+			return fmt.Errorf("failed to create new metrics service: %w", err)
+		}
+	} else {
+		mServer, err = httpserver.NewMetricsServer(config, serverService)
+		if err != nil {
+			return fmt.Errorf("failed to create new metrics service: %w", err)
+		}
+	}
+
+	if err := mServer.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start metrics service: %w", err)
 	}
 
 	return nil

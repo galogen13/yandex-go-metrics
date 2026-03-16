@@ -63,3 +63,19 @@ run-agent:
 
 run-all: 
 	run-server run-agent
+
+.PHONY: proto-gen-server
+
+MODULE_NAME = github.com/galogen13/yandex-go-metrics
+PROTO_DIR = internal/proto
+
+proto-gen-server:
+	protoc \
+		--go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		$(PROTO_DIR)/*.proto
+
+proto-gen-server-opaque:
+	protoc --go_out=. --go_opt=paths=source_relative \
+       --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+       $(PROTO_DIR)/metrics.proto
