@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type ServerI interface {
+type ServerService interface {
 	// UpdateMetrics обновляет несколько метрик за один запрос.
 	// Принимает контекст, слайс метрик и дополнительную информацию.
 	// Возвращает ошибку в случае неудачи.
@@ -29,11 +29,11 @@ type MetricsServer struct {
 	proto.UnimplementedMetricsServer
 
 	host          string
-	serverService ServerI
+	serverService ServerService
 	trustedSubnet *net.IPNet
 }
 
-func NewMetricsServer(config *config.ServerConfig, ss ServerI) (*MetricsServer, error) {
+func NewMetricsServer(config *config.ServerConfig, ss ServerService) (*MetricsServer, error) {
 
 	trustedSubnet, err := trusted.GetTrustedSubnet(config.TrustedSubnet)
 	if err != nil {
@@ -54,13 +54,19 @@ func (mServer *MetricsServer) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to init listener: %ww", err)
 	}
-	s := grpc.NewServer(grpc.ChainUnaryInterceptor(
-		LoggerInterceptor(),
-		SubnetInterceptor(mServer.trustedSubnet)))
+
+	interceptors := []grpc.UnaryServerInterceptor{
+		loggerInterceptor(),
+	}
+	if mServer.trustedSubnet != nil {
+		interceptors = append(interceptors, subnetInterceptor(mServer.trustedSubnet))
+	}
+
+	s := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptors...))
 
 	proto.RegisterMetricsServer(s, mServer)
 
-	grpcServerErrChan := make(chan error)
+	grpcServerErrChan := make(chan error, 1)
 
 	go func() {
 		defer close(grpcServerErrChan)
@@ -93,7 +99,7 @@ func (mServer *MetricsServer) Start(ctx context.Context) error {
 func (mServer *MetricsServer) UpdateMetrics(ctx context.Context, in *proto.UpdateMetricsRequest) (*proto.UpdateMetricsResponse, error) {
 	var response proto.UpdateMetricsResponse
 
-	clientIP, err := getClientIP(ctx)
+	clientIP, err := getClientIPStringFromContext(ctx)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "failed to get client IP")
 	}
@@ -120,23 +126,21 @@ func (mServer *MetricsServer) UpdateMetrics(ctx context.Context, in *proto.Updat
 		newMetrics = append(newMetrics, newMetric)
 	}
 
-	err = mServer.serverService.UpdateMetrics(ctx, newMetrics, addinfo.AddInfo{RemoteAddr: clientIP.String()})
+	err = mServer.serverService.UpdateMetrics(ctx, newMetrics, addinfo.AddInfo{RemoteAddr: clientIP})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to update metrics: %v", err.Error())
+		logger.Log.Error("failed to update metrics", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to update metrics")
 	}
 	return &response, nil
 }
 
-func getClientIP(ctx context.Context) (net.IP, error) {
+func getClientIPStringFromContext(ctx context.Context) (string, error) {
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if values := md.Get("x-real-ip"); len(values) > 0 {
-			ip := net.ParseIP(values[0])
-			if ip != nil {
-				return ip, nil
-			}
+			return values[0], nil
 		}
 	}
 
-	return nil, status.Error(codes.InvalidArgument, "cannot determine client IP")
+	return "", status.Error(codes.InvalidArgument, "cannot determine client IP")
 }

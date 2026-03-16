@@ -53,7 +53,7 @@ func (mServer *MetricsServer) Start(ctx context.Context) error {
 		Handler: r,
 	}
 
-	httpServerErrChan := make(chan error)
+	httpServerErrChan := make(chan error, 1)
 
 	go func() {
 		defer close(httpServerErrChan)
@@ -63,6 +63,10 @@ func (mServer *MetricsServer) Start(ctx context.Context) error {
 			zap.String("trusted subnet", mServer.trustedSubnet.String()),
 		)
 		if err := httpServer.ListenAndServe(); err != nil {
+			if err == http.ErrServerClosed {
+				logger.Log.Info("HTTP server closed normally")
+				return
+			}
 			httpServerErrChan <- err
 		}
 	}()
@@ -73,13 +77,16 @@ func (mServer *MetricsServer) Start(ctx context.Context) error {
 	case <-ctx.Done():
 		logger.Log.Info("shutdown signal received, stopping server gracefully...")
 
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer shutdownCancel()
 
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			if err == http.ErrServerClosed {
+				logger.Log.Info("server already closed")
+				return nil
+			}
 			return fmt.Errorf("HTTP server shutdown error: %w", err)
 		}
-
 		logger.Log.Info("Server stopped gracefully, all data saved")
 	}
 

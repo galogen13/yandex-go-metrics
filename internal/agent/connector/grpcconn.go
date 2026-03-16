@@ -41,7 +41,6 @@ func (c GRPCConnector) SendMetrics(ctx context.Context, curMetrics []metrics.Met
 	for _, metric := range curMetrics {
 
 		pbMetric := proto.Metric_builder{}.Build()
-		// pbMetric := proto
 		pbMetric.SetId(metric.ID)
 		pbMetric.SetType(*pbMTypeByMType(metric.MType))
 		switch metric.MType {
@@ -51,25 +50,10 @@ func (c GRPCConnector) SendMetrics(ctx context.Context, curMetrics []metrics.Met
 			pbMetric.SetValue(*metric.Value)
 		}
 
-		// // pbMetric.S
-		// pbMetric := proto.Metric{
-		// 	Id:   metric.ID,
-		// 	Type: *pbMTypeByMType(metric.MType),
-		// }
-
-		// switch metric.MType {
-		// case metrics.Counter:
-		// 	pbMetric.Delta = *metric.Delta
-		// case metrics.Gauge:
-		// 	pbMetric.Value = *metric.Value
-		// }
-
 		pbMetrics = append(pbMetrics, pbMetric)
 	}
 
 	ctxData := metadata.AppendToOutgoingContext(ctx, "x-real-ip", localIP)
-
-	// req := &proto.UpdateMetricsRequest{Metrics: pbMetrics}
 	req := proto.UpdateMetricsRequest_builder{}.Build()
 	req.SetMetrics(pbMetrics)
 

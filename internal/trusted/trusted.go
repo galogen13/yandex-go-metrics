@@ -20,14 +20,9 @@ func TrustedSubnetMiddleware(trustedNetwork *net.IPNet) func(http.Handler) http.
 				return
 			}
 
-			ip := net.ParseIP(realIP)
-			if ip == nil {
-				http.Error(w, "Invalid IP address in X-Real-IP header", http.StatusForbidden)
-				return
-			}
-
-			if !trustedNetwork.Contains(ip) {
-				http.Error(w, "IP address is not in trusted subnet", http.StatusForbidden)
+			err := CheckAccessToTrustedNetwork(realIP, trustedNetwork)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusForbidden)
 				return
 			}
 
@@ -36,7 +31,18 @@ func TrustedSubnetMiddleware(trustedNetwork *net.IPNet) func(http.Handler) http.
 	}
 }
 
-// getLocalIP получает локальный IP-адрес хоста
+func CheckAccessToTrustedNetwork(IPStr string, trustedNetwork *net.IPNet) error {
+	IP := net.ParseIP(IPStr)
+	if IP == nil {
+		return fmt.Errorf("invalid IP address %s", IP)
+	}
+
+	if !trustedNetwork.Contains(IP) {
+		return fmt.Errorf("IP address %s is not in trusted subnet %s", IP, trustedNetwork.String())
+	}
+	return nil
+}
+
 func GetLocalIP() (string, error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {

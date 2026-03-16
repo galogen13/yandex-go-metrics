@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/galogen13/yandex-go-metrics/internal/logger"
+	"github.com/galogen13/yandex-go-metrics/internal/trusted"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -13,26 +14,27 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func SubnetInterceptor(trustedSubnet *net.IPNet) grpc.UnaryServerInterceptor {
+func subnetInterceptor(trustedSubnet *net.IPNet) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if trustedSubnet == nil {
 			return handler(ctx, req)
 		}
 
-		ip, err := getClientIP(ctx)
+		ipStr, err := getClientIPStringFromContext(ctx)
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, "failed to extract client IP")
 		}
 
-		if !trustedSubnet.Contains(ip) {
-			return nil, status.Errorf(codes.PermissionDenied, "IP %s is not in trusted subnet", ip)
+		err = trusted.CheckAccessToTrustedNetwork(ipStr, trustedSubnet)
+		if err != nil {
+			return nil, status.Errorf(codes.PermissionDenied, "access denied: %v", err.Error())
 		}
 
 		return handler(ctx, req)
 	}
 }
 
-func LoggerInterceptor() grpc.UnaryServerInterceptor {
+func loggerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 
 		startTime := time.Now()

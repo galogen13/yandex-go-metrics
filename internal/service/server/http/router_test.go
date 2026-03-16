@@ -601,9 +601,9 @@ func TestGzipCompression(t *testing.T) {
 	serverService, err := server.NewServerService(config, stor, auditService)
 	require.NoError(t, err)
 
-	handler := http.HandlerFunc(compression.GzipMiddleware(handler.GetValueHandler(serverService)))
-
-	srv := httptest.NewServer(handler)
+	handlerFunc := handler.GetValueHandler(serverService)
+	wrappedHandler := compression.GzipMiddleware()(handlerFunc)
+	srv := httptest.NewServer(wrappedHandler)
 	defer srv.Close()
 
 	requestBody := fmt.Sprintf(`{"id":%q,"type":%q}`, id, mType)

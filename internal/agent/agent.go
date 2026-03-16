@@ -83,10 +83,10 @@ type Agent struct {
 	// PollCount - метрика-счетчик, которая накапливает количество попыток сбора метрик из пакета runtime
 	PollCount int64
 	localIP   string
-	conn      connectorI
+	conn      sendConnector
 }
 
-type connectorI interface {
+type sendConnector interface {
 	SendMetrics(ctx context.Context, metrics []metrics.Metric, localIP string) error
 	Close()
 }
@@ -198,7 +198,7 @@ func NewAgent(agentConfig config.AgentConfig) (*Agent, error) {
 		return nil, fmt.Errorf("cannot get local IP: %w", err)
 	}
 
-	var conn connectorI
+	var conn sendConnector
 	if agentConfig.UseGRPC {
 		conn, err = connector.NewGRPCConnector(agentConfig)
 		if err != nil {
@@ -572,7 +572,10 @@ func (agent *Agent) sendMetrics() {
 		zap.Any("metrics", metricsCopy),
 	)
 
-	err = agent.conn.SendMetrics(context.Background(), metricsCopy, agent.localIP)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err = agent.conn.SendMetrics(ctx, metricsCopy, agent.localIP)
 	if err != nil {
 		logger.Log.Error("error sending metrics", zap.Error(err))
 		return
